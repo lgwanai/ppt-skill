@@ -17,9 +17,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Content Gathering (GEN)
 
-- [ ] **GEN-01**: Smart hybrid questioning — when user input lacks sufficient detail, the tool asks section-level overview questions first, then gap-fills per section with targeted follow-ups, capping at 8 total questions
-- [ ] **GEN-02**: Tool generates a detailed content outline (title, body content, suggested layout type per slide) for user review and approval before any PPT generation begins
-- [ ] **GEN-03**: User can skip questioning entirely when input is sufficiently detailed, going directly to content outline generation
+- [x] **GEN-01**: Smart hybrid questioning — when user input lacks sufficient detail, the tool asks section-level overview questions first, then gap-fills per section with targeted follow-ups, capping at 8 total questions
+- [x] **GEN-02**: Tool generates a detailed content outline (title, body content, suggested layout type per slide) for user review and approval before any PPT generation begins
+- [x] **GEN-03**: User can skip questioning entirely when input is sufficiently detailed, going directly to content outline generation
 
 ### PPT Generation (PPT)
 
@@ -86,9 +86,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPC-03 | Phase 2: Spec Extraction | Complete |
 | SPC-04 | Phase 2: Spec Extraction | Complete |
 | SPC-05 | Phase 2: Spec Extraction | Complete |
-| GEN-01 | Phase 3: Content Gathering | Pending |
-| GEN-02 | Phase 3: Content Gathering | Pending |
-| GEN-03 | Phase 3: Content Gathering | Pending |
+| GEN-01 | Phase 3: Content Gathering | Complete |
+| GEN-02 | Phase 3: Content Gathering | Complete |
+| GEN-03 | Phase 3: Content Gathering | Complete |
 | PPT-01 | Phase 4: PPT Generation | Pending |
 | PPT-02 | Phase 4: PPT Generation | Pending |
 | PPT-03 | Phase 4: PPT Generation | Pending |
