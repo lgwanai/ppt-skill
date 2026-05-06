@@ -12,8 +12,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **SPC-01**: User can provide an existing .pptx file and the tool extracts visual style (color palette, backgrounds, gradients), typography (font families, sizes, weights, hierarchy), and spatial layout patterns (margins, spacing, element positioning)
 - [x] **SPC-02**: Extracted spec includes layout classification — identifying and categorizing slide types (title slides, content slides, section dividers, image+text layouts, data slides) with their distinct visual properties
 - [x] **SPC-03**: Extracted spec captures presentation logic — slide sequencing patterns, content density rhythm (anchor/dense/breathing), and storytelling structure
-- [ ] **SPC-04**: Spec is saved as a structured project-local file that can be versioned, shared, and reused across generation sessions
-- [ ] **SPC-05**: User can list available specs and select one as the target style for new PPT generation
+- [x] **SPC-04**: Spec is saved as a structured project-local file that can be versioned, shared, and reused across generation sessions
+- [x] **SPC-05**: User can list available specs and select one as the target style for new PPT generation
 
 ### Content Gathering (GEN)
 
@@ -84,8 +84,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPC-01 | Phase 2: Spec Extraction | Complete |
 | SPC-02 | Phase 2: Spec Extraction | Complete |
 | SPC-03 | Phase 2: Spec Extraction | Complete |
-| SPC-04 | Phase 2: Spec Extraction | Pending |
-| SPC-05 | Phase 2: Spec Extraction | Pending |
+| SPC-04 | Phase 2: Spec Extraction | Complete |
+| SPC-05 | Phase 2: Spec Extraction | Complete |
 | GEN-01 | Phase 3: Content Gathering | Pending |
 | GEN-02 | Phase 3: Content Gathering | Pending |
 | GEN-03 | Phase 3: Content Gathering | Pending |

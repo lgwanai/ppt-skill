@@ -7,7 +7,7 @@ Five-phase journey building an AI-powered PPT generation skill. Start by forking
 ## Phases
 
 - [x] **Phase 1: Pipeline Foundation** - Fork and adapt ppt-master's SVG→DrawingML pipeline; validate standalone conversion
-- [ ] **Phase 2: Spec Extraction** - Extract design specifications from existing PPTX files; save as reusable spec artifacts
+- [x] **Phase 2: Spec Extraction** - Extract design specifications from existing PPTX files; save as reusable spec artifacts (completed 2026-05-06)
 - [ ] **Phase 3: Content Gathering** - Smart hybrid questioning and slide-by-slide outline generation
 - [ ] **Phase 4: Spec-Driven PPT Generation** - Generate editable PPTX files that faithfully replicate extracted specs
 - [ ] **Phase 5: Platform Packaging** - Package as dual-platform installable CLI skill with end-to-end verification
@@ -90,7 +90,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Pipeline Foundation | 3/3 | Complete | 2026-05-06 |
-| 2. Spec Extraction | 2/3 | In Progress | - |
+| 2. Spec Extraction | 3/3 | Complete   | 2026-05-06 |
 | 3. Content Gathering | 0/— | Not started | - |
 | 4. Spec-Driven PPT Generation | 0/— | Not started | - |
 | 5. Platform Packaging | 0/— | Not started | - |
