@@ -45,7 +45,7 @@ Plans:
 Plans:
 - [x] 02-01-PLAN.md — Spec data model (dataclass schemas) + theme extraction (colors, fonts, backgrounds via lxml) + config.py placeholders
 - [x] 02-02-PLAN.md — Slide classification (5 types, dual-strategy) + spatial layout analysis (margins, positioning) + content density/rhythm analysis (percentile-based)
-- [ ] 02-03-PLAN.md — SpecExtractor orchestrator + CLI commands (extract-spec, list-specs, select-spec) + YAML serialization + integration tests
+- [x] 02-03-PLAN.md — SpecExtractor orchestrator + CLI commands (extract-spec, list-specs, select-spec) + YAML serialization + integration tests
 
 ### Phase 3: Content Gathering
 **Goal**: Tool intelligently gathers presentation content through adaptive questioning, producing a user-approved slide-by-slide outline before any generation begins
@@ -57,7 +57,12 @@ Plans:
   3. User receives a detailed slide-by-slide content outline (title, body content, and suggested layout type per slide) for review and approval
   4. User can bypass all questioning when initial input is sufficiently detailed — the tool proceeds directly to outline generation
   5. The outline includes layout type recommendations per slide drawn from available template types (title, content, two-column, section header, image+text)
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
+
+Plans:
+- [ ] 03-01-PLAN.md — Content data model (ContentOutline, SlideEntry, SufficiencyResult, Question, QuestionSession dataclasses + OutlineLayoutType enum)
+- [ ] 03-02-PLAN.md — Sufficiency assessment (rubric-based scoring) + adaptive questioning module (section-first overview, gap-fill follow-up, 8-question cap)
+- [ ] 03-03-PLAN.md — ContentGatherer orchestrator (3-phase pipeline) + CLI commands (gather-content, generate-outline) + integration tests
 
 ### Phase 4: Spec-Driven PPT Generation
 **Goal**: Generate natively editable PPTX files that faithfully replicate the selected spec's visual identity — colors, fonts, layouts, and content rhythm — from an approved outline
@@ -91,6 +96,6 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Pipeline Foundation | 3/3 | Complete | 2026-05-06 |
 | 2. Spec Extraction | 3/3 | Complete   | 2026-05-06 |
-| 3. Content Gathering | 0/— | Not started | - |
+| 3. Content Gathering | 0/3 | Not started | - |
 | 4. Spec-Driven PPT Generation | 0/— | Not started | - |
 | 5. Platform Packaging | 0/— | Not started | - |
