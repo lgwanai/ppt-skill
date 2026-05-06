@@ -6,13 +6,13 @@ import re
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from .drawingml_context import ConvertContext, ShapeResult
-from .drawingml_utils import (
+from .context import ConvertContext, ShapeResult
+from .utils import (
     SVG_NS,
     _extract_inheritable_styles, parse_transform_matrix, resolve_url_id,
 )
-from .drawingml_styles import build_effect_xml
-from .drawingml_elements import (
+from .styles import build_effect_xml
+from .elements import (
     convert_rect, convert_circle, convert_ellipse,
     convert_line, convert_path,
     convert_polygon, convert_polyline,
@@ -305,7 +305,7 @@ def convert_svg_to_slide_shapes(
     # both ignore data-icon, so without expansion icons would silently drop.
     # The on-disk finalize_svg pipeline does the same expansion for svg_final/;
     # running this here makes the two pipelines behaviourally aligned.
-    icons_dir = Path(__file__).resolve().parent.parent.parent / 'templates' / 'icons'
+    icons_dir = Path(__file__).resolve().parent.parent.parent.parent / 'templates' / 'icons'
     if icons_dir.exists():
         from .use_expander import expand_use_data_icons
         expanded = expand_use_data_icons(root, icons_dir)

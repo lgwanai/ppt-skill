@@ -9,8 +9,8 @@ import base64
 from typing import Any
 from xml.etree import ElementTree as ET
 
-from .drawingml_context import ConvertContext, ShapeResult
-from .drawingml_utils import (
+from .context import ConvertContext, ShapeResult
+from .utils import (
     SVG_NS, XLINK_NS, ANGLE_UNIT, FONT_PX_TO_HUNDREDTHS_PT, DASH_PRESETS,
     px_to_emu, _f, _get_attr,
     ctx_x, ctx_y, ctx_w, ctx_h,
@@ -19,12 +19,12 @@ from .drawingml_utils import (
     parse_font_family, is_cjk_char, estimate_text_width,
     _xml_escape,
 )
-from .drawingml_styles import (
+from .styles import (
     build_solid_fill, build_gradient_fill,
     build_fill_xml, build_stroke_xml, build_effect_xml, classify_filter_effect,
     get_fill_opacity, get_stroke_opacity,
 )
-from .drawingml_paths import (
+from .paths import (
     PathCommand, parse_svg_path, svg_path_to_absolute,
     normalize_path_commands, path_commands_to_drawingml,
 )

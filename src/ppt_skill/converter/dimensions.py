@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-# Import project utility modules
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-try:
-    from project_utils import get_project_info
-    from config import CANVAS_FORMATS
-except ImportError:
-    CANVAS_FORMATS = {
-        'ppt169': {'name': 'PPT 16:9', 'dimensions': '1280×720', 'viewbox': '0 0 1280 720'},
-    }
+# Canvas format definitions (forked from ppt-master config.py)
+# Task 5 in Plan 02 will create ppt_skill.config module with full CANVAS_FORMATS
+CANVAS_FORMATS = {
+    'ppt169': {'name': 'PPT 16:9', 'dimensions': '1280×720', 'viewbox': '0 0 1280 720'},
+}
 
-    def get_project_info(path: str) -> dict:
-        return {'format': 'unknown', 'name': Path(path).name}
+def get_project_info(path: str) -> dict:
+    return {'format': 'unknown', 'name': Path(path).name}
 
 # EMU conversion constants
 EMU_PER_INCH = 914400

@@ -20,7 +20,6 @@ behaviourally aligned.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -29,11 +28,8 @@ SVG_NS = 'http://www.w3.org/2000/svg'
 
 
 def _import_embed_icons():
-    """Lazy import so svg_to_pptx doesn't hard-require svg_finalize at import time."""
-    scripts_dir = Path(__file__).resolve().parent.parent
-    if str(scripts_dir) not in sys.path:
-        sys.path.insert(0, str(scripts_dir))
-    from svg_finalize import embed_icons  # type: ignore
+    """Lazy import so converter doesn't hard-require finalize at import time."""
+    from ppt_skill.finalize import embed_icons
     return embed_icons
 
 

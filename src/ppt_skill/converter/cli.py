@@ -8,11 +8,11 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-from .pptx_dimensions import CANVAS_FORMATS, get_project_info
-from .pptx_discovery import find_svg_files, find_notes_files
-from .pptx_builder import create_pptx_with_native_svg
-from .pptx_narration import find_narration_files
-from .pptx_slide_xml import TRANSITIONS
+from .dimensions import CANVAS_FORMATS, get_project_info
+from .discovery import find_svg_files, find_notes_files
+from .builder import create_pptx_with_native_svg
+from .narration import find_narration_files
+from .slide_xml import TRANSITIONS
 
 try:
     from pptx_animations import ANIMATIONS as _ANIMATIONS
