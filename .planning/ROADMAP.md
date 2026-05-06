@@ -43,8 +43,8 @@ Plans:
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 02-01-PLAN.md — Spec data model (dataclass schemas) + theme extraction (colors, fonts, backgrounds via lxml) + config.py placeholders
-- [ ] 02-02-PLAN.md — Slide classification (5 types, dual-strategy) + spatial layout analysis (margins, positioning) + content density/rhythm analysis (percentile-based)
+- [x] 02-01-PLAN.md — Spec data model (dataclass schemas) + theme extraction (colors, fonts, backgrounds via lxml) + config.py placeholders
+- [x] 02-02-PLAN.md — Slide classification (5 types, dual-strategy) + spatial layout analysis (margins, positioning) + content density/rhythm analysis (percentile-based)
 - [ ] 02-03-PLAN.md — SpecExtractor orchestrator + CLI commands (extract-spec, list-specs, select-spec) + YAML serialization + integration tests
 
 ### Phase 3: Content Gathering
@@ -89,8 +89,8 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Pipeline Foundation | 0/3 | Planned | - |
-| 2. Spec Extraction | 0/3 | Planned | - |
+| 1. Pipeline Foundation | 3/3 | Complete | 2026-05-06 |
+| 2. Spec Extraction | 2/3 | In Progress | - |
 | 3. Content Gathering | 0/— | Not started | - |
 | 4. Spec-Driven PPT Generation | 0/— | Not started | - |
 | 5. Platform Packaging | 0/— | Not started | - |
