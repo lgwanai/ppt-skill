@@ -6,7 +6,8 @@ partially and populated incrementally.
 
 These schemas define the contract between Phase 3 (Content Gathering) and
 Phase 4 (PPT Generation) — ContentOutline is serialized to YAML and consumed
-by the generation pipeline.
+by the generation pipeline. Internal types (SufficiencyResult, Question,
+QuestionSession) support the adaptive questioning workflow.
 
 Design follows the same conventions as ppt_skill.spec.spec_model.py:
   - from __future__ import annotations
@@ -222,8 +223,100 @@ class ContentOutline:
         return cls(**valid_fields)
 
 
+# ---------------------------------------------------------------------------
+# Sufficiency assessment types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class SufficiencyResult:
+    """Result of input sufficiency assessment.
+
+    sufficient: True if input has enough detail to skip questioning.
+    confidence: Float 0.0–1.0 representing assessment confidence.
+    missing_dimensions: Which aspects are lacking (e.g., "structure",
+        "detail", "audience").
+    section_count: How many sections/topics were identified.
+    estimated_slide_count: Rough estimate of resulting slides.
+    scores: Per-dimension scores dict (e.g., {"structure": 2, "detail": 1}).
+    total_score: Sum of all dimension scores.
+    rationale: Human-readable explanation of the assessment.
+
+    The sufficiency threshold is documented here but enforced in the
+    sufficiency assessment module (sufficiency.py), not the dataclass:
+        sufficient when total_score >= 5 AND structure >= 1 AND detail >= 1
+    """
+
+    sufficient: bool = False
+    confidence: float = 0.0
+    missing_dimensions: list[str] = field(default_factory=list)
+    section_count: int = 0
+    estimated_slide_count: int = 0
+    scores: dict[str, int] = field(default_factory=dict)
+    total_score: int = 0
+    rationale: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Adaptive questioning types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Question:
+    """A single question in the adaptive questioning session.
+
+    category: One of "structure", "detail", "audience", or "storytelling".
+        The priority ordering follows: structure > detail > audience > storytelling.
+    target_section: None for section-level overview questions; section name
+        string for gap-fill questions targeting a specific section.
+    context: Why this question is being asked (references what's already known).
+    """
+
+    id: int = 0
+    category: str = ""
+    text: str = ""
+    target_section: str | None = None
+    context: str = ""
+
+
+@dataclass
+class QuestionSession:
+    """Tracks state across an adaptive questioning session.
+
+    Budget starts at 8 questions. Section-level questions are asked first
+    (one per section), then remaining budget is allocated to gap-fill
+    questions for sections with identified knowledge gaps.
+
+    gaps_per_section keys are section names, values are lists of gap types
+    (e.g., "missing_detail", "no_examples", "no_takeaway", "missing_transition").
+    """
+
+    questions_asked: list[Question] = field(default_factory=list)
+    budget_remaining: int = 8
+    sections_identified: list[str] = field(default_factory=list)
+    gaps_per_section: dict[str, list[str]] = field(default_factory=dict)
+
+    @property
+    def total_asked(self) -> int:
+        """Total number of questions asked in this session."""
+        return len(self.questions_asked)
+
+    def can_ask(self) -> bool:
+        """True if budget remains for more questions."""
+        return self.budget_remaining > 0
+
+    def mark_asked(self, question: Question) -> None:
+        """Record a question as asked, decrement budget."""
+        self.questions_asked.append(question)
+        self.budget_remaining -= 1
+
+
 __all__ = [
     "ContentOutline",
     "OutlineLayoutType",
+    "Question",
+    "QuestionSession",
     "SlideEntry",
+    "SufficiencyResult",
 ]

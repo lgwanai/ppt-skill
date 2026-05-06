@@ -14,11 +14,17 @@ The data flow:
 from ppt_skill.content.model import (
     ContentOutline,
     OutlineLayoutType,
+    Question,
+    QuestionSession,
     SlideEntry,
+    SufficiencyResult,
 )
 
 __all__ = [
     "ContentOutline",
     "OutlineLayoutType",
+    "Question",
+    "QuestionSession",
     "SlideEntry",
+    "SufficiencyResult",
 ]
