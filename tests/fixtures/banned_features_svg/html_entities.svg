@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+  <text x="20" y="50" font-family="Arial, sans-serif" font-size="24" fill="#333">
+    This &amp; that &mdash; with &nbsp; entities
+  </text>
+</svg>
