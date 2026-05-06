@@ -34,6 +34,7 @@ Progress: [██████░░░░░░░░░░░░░░] 30%
 - Plan 01-02: Quality checker + templates (~15 min)
 
 *Updated after each plan completion*
+| Phase 01-pipeline-foundation P01-01 | 15 min | 3 tasks | 26 files |
 
 ## Accumulated Context
 
@@ -50,6 +51,10 @@ Recent decisions affecting current work:
 - **01-02:** Stripped template_mode, spec_lock drift, and sourced image checks from quality checker (Phase 1 only validates individual SVGs; template/spec concerns belong to Phases 2-4)
 - **01-02:** Minimal config.py — only CANVAS_FORMATS (8 entries in EMU); DESIGN_COLORS/INDUSTRY_COLORS added in Phase 2
 - **01-02:** Template assets at project root (templates/) not inside src/ package — mirrors ppt-master's runtime path resolution
+- [Phase 01-pipeline-foundation]: Template resolution uses 4-parent traversal from deep package structure to reach project root — New structure src/ppt_skill/converter/ requires 4 levels of parent traversal vs original 3 levels
+- [Phase 01-pipeline-foundation]: CANVAS_FORMATS fallback kept inline in dimensions.py until Plan 02 creates ppt_skill.config — Avoid pulling in 700+ lines of ppt-master configuration
+- [Phase 01-pipeline-foundation]: Soft optional imports preserved for pptx_animations and cairosvg — Core native-shapes pipeline works without them; they fail gracefully
+- [Phase 01-pipeline-foundation]: Cross-package imports use proper ppt_skill.finalize.* paths, sys.path.insert hacks removed — Clean package structure enables proper Python package imports
 
 ### Pending Todos
 

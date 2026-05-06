@@ -30,9 +30,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Pipeline Foundation (PIP)
 
-- [ ] **PIP-01**: Fork and adapt ppt-master's core SVG→DrawingML converter modules (17-module pipeline) for spec-driven generation — every shape, text box, and gradient is a native PowerPoint element
+- [x] **PIP-01**: Fork and adapt ppt-master's core SVG→DrawingML converter modules (17-module pipeline) for spec-driven generation — every shape, text box, and gradient is a native PowerPoint element
 - [x] **PIP-02**: SVG quality checker validates generated SVGs against ppt-master compatibility rules before conversion
-- [ ] **PIP-03**: Post-processing pipeline (icon embedding, tspan flattening, image alignment) produces PPTX-parsable SVG output
+- [x] **PIP-03**: Post-processing pipeline (icon embedding, tspan flattening, image alignment) produces PPTX-parsable SVG output
 - [x] **PIP-04**: Inherit ppt-master's icon library (11,600+ SVG icons) and chart templates (70+ chart types) for visual variety
 
 ### Platform & Packaging (PLT)
@@ -93,9 +93,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PPT-02 | Phase 4: PPT Generation | Pending |
 | PPT-03 | Phase 4: PPT Generation | Pending |
 | PPT-04 | Phase 4: PPT Generation | Pending |
-| PIP-01 | Phase 1: Pipeline Foundation | Pending |
+| PIP-01 | Phase 1: Pipeline Foundation | Complete |
 | PIP-02 | Phase 1: Pipeline Foundation | Complete |
-| PIP-03 | Phase 1: Pipeline Foundation | Pending |
+| PIP-03 | Phase 1: Pipeline Foundation | Complete |
 | PIP-04 | Phase 1: Pipeline Foundation | Complete |
 | PLT-01 | Phase 5: Platform Packaging | Pending |
 | PLT-02 | Phase 5: Platform Packaging | Pending |
