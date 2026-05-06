@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Spec Extraction & Management (SPC)
 
-- [ ] **SPC-01**: User can provide an existing .pptx file and the tool extracts visual style (color palette, backgrounds, gradients), typography (font families, sizes, weights, hierarchy), and spatial layout patterns (margins, spacing, element positioning)
+- [x] **SPC-01**: User can provide an existing .pptx file and the tool extracts visual style (color palette, backgrounds, gradients), typography (font families, sizes, weights, hierarchy), and spatial layout patterns (margins, spacing, element positioning)
 - [ ] **SPC-02**: Extracted spec includes layout classification — identifying and categorizing slide types (title slides, content slides, section dividers, image+text layouts, data slides) with their distinct visual properties
 - [ ] **SPC-03**: Extracted spec captures presentation logic — slide sequencing patterns, content density rhythm (anchor/dense/breathing), and storytelling structure
 - [ ] **SPC-04**: Spec is saved as a structured project-local file that can be versioned, shared, and reused across generation sessions
@@ -81,7 +81,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPC-01 | Phase 2: Spec Extraction | Pending |
+| SPC-01 | Phase 2: Spec Extraction | Complete |
 | SPC-02 | Phase 2: Spec Extraction | Pending |
 | SPC-03 | Phase 2: Spec Extraction | Pending |
 | SPC-04 | Phase 2: Spec Extraction | Pending |

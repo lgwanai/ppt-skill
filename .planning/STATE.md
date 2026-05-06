@@ -5,38 +5,41 @@
 See: .planning/PROJECT.md (updated 2026-05-06)
 
 **Core value:** Generate professional, editable PPTs that faithfully follow extracted design specifications — turning raw content into polished presentations without requiring design expertise.
-**Current focus:** Phase 1 - Pipeline Foundation
+**Current focus:** Phase 2 - Spec Extraction
 
 ## Current Position
 
-Phase: 1 of 5 (Pipeline Foundation)
-Plan: 3 of 3 (Phase 1 complete — all 3 plans executed)
-Status: Complete
-Last activity: 2026-05-06 — Plan 01-03 executed: pipeline CLI + 23 regression tests + 9 fixture SVGs
+Phase: 2 of 5 (Spec Extraction)
+Plan: 1 of 3 (02-01 executed — spec data model + theme extraction + config placeholders)
+Status: In Progress
+Last activity: 2026-05-06 — Plan 02-01 executed: 9 dataclass types + lxml theme extraction + config placeholders
 
-Progress: [██████████░░░░░░░░░░] 50%
+Progress: [████████████░░░░░░░░] 60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: ~10 min
-- Total execution time: ~30 min
+- Total execution time: ~37 min
 
 **By Phase:**
 
 | Phase | Plans | Duration | Avg/Plan |
 |-------|-------|----------|----------|
 | 01-pipeline-foundation | 3 | ~30 min | ~10 min |
+| 02-spec-extraction | 1 | ~7 min | ~7 min |
 
 **Recent Trend:**
 - Plan 01-01: Forked 17 converter + 8 finalize modules (~10 min)
 - Plan 01-02: Quality checker + templates (~15 min)
 - Plan 01-03: Pipeline CLI + 23 regression tests (~5 min)
+- Plan 02-01: Spec data model + theme extraction + config placeholders (~7 min)
 
 *Updated after each plan completion*
 | Phase 01-pipeline-foundation P01-01 | 15 min | 3 tasks | 26 files |
 | Phase 01-pipeline-foundation P03 | 5 min | 3 tasks | 16 files |
+| Phase 02-spec-extraction P01 | 7 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -60,6 +63,10 @@ Recent decisions affecting current work:
 - **01-03:** Unified pipeline as single function (convert_svg_to_pptx) with quality gate and optional --skip-check flag
 - **01-03:** Pipeline defaults: use_native_shapes=True, use_compat_mode=False — Phase 1 targets native shapes exclusively
 - **01-03:** pyproject.toml created for pip install -e . — required for from ppt_skill.pipeline imports in tests/CLI
+- [Phase 02-spec-extraction]: Used dataclasses (NOT Pydantic) — minimal dependencies, sufficient for Phase 2–4 contract
+- [Phase 02-spec-extraction]: Two-pass color resolution for schemeClr references against clrScheme
+- [Phase 02-spec-extraction]: 4-level background inheritance walk (slide→layout→master→theme) as workaround for python-pptx bug #1126
+- [Phase 02-spec-extraction]: Config placeholders seeded with Office 365 defaults — provides safe fallback for Phase 4
 
 ### Pending Todos
 
@@ -75,5 +82,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Completed 01-03-PLAN.md — pipeline CLI + 23 regression tests + 9 fixture SVGs. Phase 1 complete.
-Resume file: .planning/phases/01-pipeline-foundation/01-03-SUMMARY.md
+Stopped at: Completed 02-01-PLAN.md — spec data model (9 types) + lxml theme extraction + config placeholders. Phase 2 Plan 1/3 done.
+Resume file: .planning/phases/02-spec-extraction/02-01-SUMMARY.md
