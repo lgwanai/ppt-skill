@@ -1,0 +1,5 @@
+python-pptx>=0.6.21
+Pillow>=9.0.0
+
+# Optional: SVG→PNG rendering for Office LTSC 2021 compatibility mode
+# cairosvg>=2.7.0
