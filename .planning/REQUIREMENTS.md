@@ -81,31 +81,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SPC-01 | — | Pending |
-| SPC-02 | — | Pending |
-| SPC-03 | — | Pending |
-| SPC-04 | — | Pending |
-| SPC-05 | — | Pending |
-| GEN-01 | — | Pending |
-| GEN-02 | — | Pending |
-| GEN-03 | — | Pending |
-| PPT-01 | — | Pending |
-| PPT-02 | — | Pending |
-| PPT-03 | — | Pending |
-| PPT-04 | — | Pending |
-| PIP-01 | — | Pending |
-| PIP-02 | — | Pending |
-| PIP-03 | — | Pending |
-| PIP-04 | — | Pending |
-| PLT-01 | — | Pending |
-| PLT-02 | — | Pending |
-| PLT-03 | — | Pending |
+| SPC-01 | Phase 2: Spec Extraction | Pending |
+| SPC-02 | Phase 2: Spec Extraction | Pending |
+| SPC-03 | Phase 2: Spec Extraction | Pending |
+| SPC-04 | Phase 2: Spec Extraction | Pending |
+| SPC-05 | Phase 2: Spec Extraction | Pending |
+| GEN-01 | Phase 3: Content Gathering | Pending |
+| GEN-02 | Phase 3: Content Gathering | Pending |
+| GEN-03 | Phase 3: Content Gathering | Pending |
+| PPT-01 | Phase 4: PPT Generation | Pending |
+| PPT-02 | Phase 4: PPT Generation | Pending |
+| PPT-03 | Phase 4: PPT Generation | Pending |
+| PPT-04 | Phase 4: PPT Generation | Pending |
+| PIP-01 | Phase 1: Pipeline Foundation | Pending |
+| PIP-02 | Phase 1: Pipeline Foundation | Pending |
+| PIP-03 | Phase 1: Pipeline Foundation | Pending |
+| PIP-04 | Phase 1: Pipeline Foundation | Pending |
+| PLT-01 | Phase 5: Platform Packaging | Pending |
+| PLT-02 | Phase 5: Platform Packaging | Pending |
+| PLT-03 | Phase 5: Platform Packaging | Pending |
 
 **Coverage:**
 - v1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 ⚠️
+- Mapped to phases: 19
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-06*
-*Last updated: 2026-05-06 after research synthesis*
+*Last updated: 2026-05-06 after roadmap creation*
