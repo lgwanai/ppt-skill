@@ -22,8 +22,13 @@ Five-phase journey building an AI-powered PPT generation skill. Start by forking
   1. A standalone Python script converts a sample SVG to a .pptx file where every shape is a native DrawingML element (not a flattened image)
   2. The SVG quality checker correctly rejects SVGs containing banned features — masks, `rgba()` colors, `@font-face`, HTML entities, and `<style>` tags
   3. The output PPTX opens in Microsoft PowerPoint with all shapes remaining individually selectable, movable, and editable
-  4. The forked pipeline passes a regression test suite against a known-good set of SVG→PPTX pairs covering the full converter module chain
-**Plans**: TBD
+   4. The forked pipeline passes a regression test suite against a known-good set of SVG→PPTX pairs covering the full converter module chain
+**Plans**: 3 plans in 2 waves
+
+Plans:
+- [ ] 01-01-PLAN.md — Fork and wire 17-module svg_to_pptx/ converter + 8-module svg_finalize/ pipeline (imports, paths, cross-refs)
+- [ ] 01-02-PLAN.md — Fork SVG quality checker + create minimal config + copy 11,631 icons and 73 chart templates
+- [ ] 01-03-PLAN.md — Create unified pipeline CLI + regression test suite (quality checker + converter integration + e2e)
 
 ### Phase 2: Spec Extraction
 **Goal**: Users provide a reference PPTX and receive a structured, reusable design specification file capturing colors, fonts, layout patterns, and slide type classifications
@@ -79,7 +84,7 @@ Five-phase journey building an AI-powered PPT generation skill. Start by forking
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Pipeline Foundation | 0/— | Not started | - |
+| 1. Pipeline Foundation | 0/3 | Planned | - |
 | 2. Spec Extraction | 0/— | Not started | - |
 | 3. Content Gathering | 0/— | Not started | - |
 | 4. Spec-Driven PPT Generation | 0/— | Not started | - |
