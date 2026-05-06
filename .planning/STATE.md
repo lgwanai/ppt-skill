@@ -10,31 +10,33 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 ## Current Position
 
 Phase: 1 of 5 (Pipeline Foundation)
-Plan: 2 of 3 (01-01 converter fork complete, 01-02 quality + templates complete)
-Status: In Progress
-Last activity: 2026-05-06 — Plan 01-02 executed: quality checker + 11,631 icons + 70 chart templates
+Plan: 3 of 3 (Phase 1 complete — all 3 plans executed)
+Status: Complete
+Last activity: 2026-05-06 — Plan 01-03 executed: pipeline CLI + 23 regression tests + 9 fixture SVGs
 
-Progress: [██████░░░░░░░░░░░░░░] 30%
+Progress: [██████████░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: ~12 min
-- Total execution time: ~25 min
+- Total plans completed: 3
+- Average duration: ~10 min
+- Total execution time: ~30 min
 
 **By Phase:**
 
 | Phase | Plans | Duration | Avg/Plan |
 |-------|-------|----------|----------|
-| 01-pipeline-foundation | 2 | ~25 min | ~12 min |
+| 01-pipeline-foundation | 3 | ~30 min | ~10 min |
 
 **Recent Trend:**
 - Plan 01-01: Forked 17 converter + 8 finalize modules (~10 min)
 - Plan 01-02: Quality checker + templates (~15 min)
+- Plan 01-03: Pipeline CLI + 23 regression tests (~5 min)
 
 *Updated after each plan completion*
 | Phase 01-pipeline-foundation P01-01 | 15 min | 3 tasks | 26 files |
+| Phase 01-pipeline-foundation P03 | 5 min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -55,6 +57,9 @@ Recent decisions affecting current work:
 - [Phase 01-pipeline-foundation]: CANVAS_FORMATS fallback kept inline in dimensions.py until Plan 02 creates ppt_skill.config — Avoid pulling in 700+ lines of ppt-master configuration
 - [Phase 01-pipeline-foundation]: Soft optional imports preserved for pptx_animations and cairosvg — Core native-shapes pipeline works without them; they fail gracefully
 - [Phase 01-pipeline-foundation]: Cross-package imports use proper ppt_skill.finalize.* paths, sys.path.insert hacks removed — Clean package structure enables proper Python package imports
+- **01-03:** Unified pipeline as single function (convert_svg_to_pptx) with quality gate and optional --skip-check flag
+- **01-03:** Pipeline defaults: use_native_shapes=True, use_compat_mode=False — Phase 1 targets native shapes exclusively
+- **01-03:** pyproject.toml created for pip install -e . — required for from ppt_skill.pipeline imports in tests/CLI
 
 ### Pending Todos
 
@@ -70,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-05-06
-Stopped at: Completed 01-02-PLAN.md — quality checker + templates. Ready for Plan 01-03 (integration + tests).
-Resume file: .planning/phases/01-pipeline-foundation/01-02-SUMMARY.md
+Stopped at: Completed 01-03-PLAN.md — pipeline CLI + 23 regression tests + 9 fixture SVGs. Phase 1 complete.
+Resume file: .planning/phases/01-pipeline-foundation/01-03-SUMMARY.md

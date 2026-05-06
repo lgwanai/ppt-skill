@@ -6,7 +6,7 @@ Five-phase journey building an AI-powered PPT generation skill. Start by forking
 
 ## Phases
 
-- [ ] **Phase 1: Pipeline Foundation** - Fork and adapt ppt-master's SVG→DrawingML pipeline; validate standalone conversion
+- [x] **Phase 1: Pipeline Foundation** - Fork and adapt ppt-master's SVG→DrawingML pipeline; validate standalone conversion
 - [ ] **Phase 2: Spec Extraction** - Extract design specifications from existing PPTX files; save as reusable spec artifacts
 - [ ] **Phase 3: Content Gathering** - Smart hybrid questioning and slide-by-slide outline generation
 - [ ] **Phase 4: Spec-Driven PPT Generation** - Generate editable PPTX files that faithfully replicate extracted specs
@@ -26,9 +26,9 @@ Five-phase journey building an AI-powered PPT generation skill. Start by forking
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 01-01-PLAN.md — Fork and wire 17-module svg_to_pptx/ converter + 8-module svg_finalize/ pipeline (imports, paths, cross-refs)
-- [ ] 01-02-PLAN.md — Fork SVG quality checker + create minimal config + copy 11,631 icons and 73 chart templates
-- [ ] 01-03-PLAN.md — Create unified pipeline CLI + regression test suite (quality checker + converter integration + e2e)
+- [x] 01-01-PLAN.md — Fork and wire 17-module svg_to_pptx/ converter + 8-module svg_finalize/ pipeline (imports, paths, cross-refs)
+- [x] 01-02-PLAN.md — Fork SVG quality checker + create minimal config + copy 11,631 icons and 73 chart templates
+- [x] 01-03-PLAN.md — Create unified pipeline CLI + regression test suite (quality checker + converter integration + e2e)
 
 ### Phase 2: Spec Extraction
 **Goal**: Users provide a reference PPTX and receive a structured, reusable design specification file capturing colors, fonts, layout patterns, and slide type classifications
