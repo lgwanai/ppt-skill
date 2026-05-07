@@ -1,0 +1,28 @@
+id: developer/ppt-skill
+name: ppt-skill
+version: 0.1.0
+publisher: developer
+entry:
+  runtime: python
+  protocol: skill
+  main: scripts/ppt_cli.py
+permissions:
+  net:
+    outbound: []
+  fs:
+    read:
+      - ./requirements.txt
+      - ./scripts/**
+      - ./references/**
+      - ./assets/**
+      - ./specs/**
+      - ./outlines/**
+      - ./.okskills/**
+    write:
+      - ./specs/**
+      - ./outlines/**
+      - ./.okskills/**
+  env:
+    read: []
+distribution:
+  minCliVersion: 0.1.0

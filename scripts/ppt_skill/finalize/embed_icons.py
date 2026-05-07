@@ -49,7 +49,7 @@ from xml.etree import ElementTree as ET
 
 
 # Default icon directory
-DEFAULT_ICONS_DIR = Path(__file__).parent.parent.parent.parent / 'templates' / 'icons'
+DEFAULT_ICONS_DIR = Path(__file__).parent.parent.parent.parent / 'assets' / 'templates' / 'icons'
 
 # Icon base size per library
 ICON_BASE_SIZES = {

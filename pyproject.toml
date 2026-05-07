@@ -1,22 +1,30 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "ppt-skill"
 version = "0.1.0"
-description = "AI-powered PPT generation from SVGs with native DrawingML shapes"
-requires-python = ">=3.9"
-dependencies = [
-    "python-pptx>=0.6.21",
-    "Pillow>=9.0.0",
-    "pyyaml>=6.0",
+description = "AI-powered PPT generation from SVG with native DrawingML shapes — spec extraction, content gathering, and PPTX export"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
+[tool.coverage.run]
+source = ["scripts"]
+omit = [
+    "scripts/ppt_cli.py",
+    "*/__pycache__/*",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

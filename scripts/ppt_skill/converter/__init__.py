@@ -6,7 +6,7 @@ Public API:
     - create_pptx_with_native_svg(): Build PPTX from SVG files
 
 Template resolution: templates/ lives at project root (sibling to src/).
-Use: Path(__file__).resolve().parent.parent.parent.parent / 'templates' / 'icons'
+Use: Path(__file__).resolve().parent.parent.parent.parent / 'assets' / 'templates' / 'icons'
 """
 
 from .cli import main
