@@ -187,8 +187,8 @@ def build_presentation_rhythm(
     n = len(slide_types)
     if n == 0:
         return PresentationRhythm(
-            sequencing_pattern=sequencing_pattern,
-            density_profile=density_profile,
+            page_sequence=sequencing_pattern,
+            density_sequence=density_profile,
             story_arc={"opening": 0, "development": 0, "climax": 0, "closing": 0},
         )
 
@@ -254,8 +254,8 @@ def build_presentation_rhythm(
     }
 
     return PresentationRhythm(
-        sequencing_pattern=sequencing_pattern,
-        density_profile=density_profile,
+        page_sequence=sequencing_pattern,
+        density_sequence=density_profile,
         story_arc=story_arc,
     )
 

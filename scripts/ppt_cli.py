@@ -48,8 +48,13 @@ def cmd_convert(args: argparse.Namespace) -> int:
 
 
 def cmd_extract_spec(args: argparse.Namespace) -> int:
-    """Extract design specification from a reference PPTX file."""
-    from ppt_skill.spec.extractor import SpecExtractor
+    """Extract design specification from a reference PPTX file.
+    
+    Outputs a directory-based spec with page-level layout analysis,
+    assets, and presentation logic. If VL_ENABLED=true in config.txt,
+    uses vision model for enhanced layout description.
+    """
+    from ppt_skill.spec.enhanced_extractor import SpecExtractor
 
     input_path = Path(args.input)
     if not input_path.exists():
@@ -60,10 +65,14 @@ def cmd_extract_spec(args: argparse.Namespace) -> int:
     spec = extractor.extract(input_path)
     extractor.save(spec)
 
-    print(f"Spec extracted and saved: specs/{spec.metadata.get('name', 'spec')}.yaml")
-    print(f"  Colors: {len(spec.color_palette)} palette entries")
+    print(f"Spec saved: specs/{spec.metadata.get('name', 'spec')}/")
+    print(f"  Colors: {len(spec.colors.to_dict())} palette entries")
     print(f"  Fonts: {spec.typography.heading_family or 'unknown'} / {spec.typography.body_family or 'unknown'}")
-    print(f"  Slides: {len(spec.slides)} classified into {len(set(s.slide_type for s in spec.slides))} types")
+    print(f"  Pages: {len(spec.pages)} → {', '.join(spec.page_types_found)}")
+    if spec.layout_sub_types_found:
+        print(f"  Layouts: {', '.join(spec.layout_sub_types_found)}")
+    print(f"  Assets: {spec.asset_count}")
+    print(f"  VL analysis: {'enabled' if extractor.config.enabled else 'disabled'}")
     return 0
 
 

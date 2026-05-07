@@ -79,8 +79,7 @@ def _dataclass_to_dict(obj: Any) -> Any:
     """Recursively convert a dataclass (or nested structure) to plain dicts.
 
     Uses dataclasses.asdict() for the initial conversion, then walks through
-    the result to extract .value from Enum members. Handles nested dataclasses,
-    lists, dicts, and tuples.
+    the result to extract .value from Enum members.
     """
     if is_dataclass(obj) and not isinstance(obj, type):
         raw = asdict(obj)
@@ -255,7 +254,11 @@ class SpecExtractor:
 
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        spec_data = _dataclass_to_dict(self.spec)
+        # Use custom to_dict() if available (handles backward-compat properties)
+        if hasattr(self.spec, "to_dict") and callable(self.spec.to_dict):
+            spec_data = self.spec.to_dict()
+        else:
+            spec_data = _dataclass_to_dict(self.spec)
         out_path = out_dir / f"{self.spec_name}.yaml"
 
         with open(out_path, "w", encoding="utf-8") as f:
