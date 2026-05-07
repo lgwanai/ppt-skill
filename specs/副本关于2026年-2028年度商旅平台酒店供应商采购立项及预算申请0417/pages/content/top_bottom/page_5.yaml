@@ -1,0 +1,56 @@
+page_type: content
+layout_sub_type: top_bottom
+description: 'Layout with 6 shapes: 4 text areas, 0 images. Type: content, Sub-type:
+  top_bottom'
+layout_description: 'Layout with 6 shapes: 4 text areas, 0 images. Type: content,
+  Sub-type: top_bottom'
+width_emu: 12192000
+height_emu: 6858000
+background_color: '#FFFFFF'
+background_description: White background (PowerPoint default)
+has_background_image: false
+regions:
+- x: 0.020677083333333332
+  y: 0.04898148148148148
+  width: 0.7172916666666667
+  height: 0.08361111111111111
+  role: decoration
+  content_type: text
+  description: 二、新一期项目内容
+- x: 0.034166666666666665
+  y: 0.11962962962962963
+  width: 0.9133854166666666
+  height: 0.2414814814814815
+  role: body
+  content_type: text
+  description: "（一）新一期采购项目总费用\n  根据上一期间夜总量180万间夜总量预估，新一期项目总费用（26年8月-27年8月)=156万（间夜量）*\
+    \ 8.28（单间夜..."
+- x: 0.034166666666666665
+  y: 0.3611111111111111
+  width: 0.6541666666666667
+  height: 0.04287037037037037
+  role: body
+  content_type: text
+  description: （二）2026-2027两年预算
+- x: 0.04375
+  y: 0.42148148148148146
+  width: 0.8165625
+  height: 0.25425925925925924
+  role: table
+  content_type: table
+  description: ''
+- x: 0.04375
+  y: 0.7172222222222222
+  width: 0.9038541666666666
+  height: 0.2325925925925926
+  role: body
+  content_type: text
+  description: 2026年说明：经向集团财务部门确认，2026年集团内部服务费政策（7%或35元/间夜取低值）继续执行。基于2026年预计间夜量78万间夜，预计集团内部服...
+- x: 0.9211458333333333
+  y: 0.9057407407407407
+  width: 0.07390625
+  height: 0.049166666666666664
+  role: decoration
+  content_type: decorative
+  description: 6/14
+elements: []

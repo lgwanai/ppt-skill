@@ -1,0 +1,41 @@
+page_type: content
+layout_sub_type: top_bottom
+description: 'Layout with 4 shapes: 1 text areas, 0 images. Type: content, Sub-type:
+  top_bottom'
+layout_description: 'Layout with 4 shapes: 1 text areas, 0 images. Type: content,
+  Sub-type: top_bottom'
+width_emu: 12192000
+height_emu: 6858000
+background_color: '#FFFFFF'
+background_description: White background (PowerPoint default)
+has_background_image: false
+regions:
+- x: 0.6974479166666666
+  y: 0.17814814814814814
+  width: 0.30255208333333333
+  height: 0.3832407407407407
+  role: chart
+  content_type: chart
+  description: ''
+- x: 0.044895833333333336
+  y: 0.0425
+  width: 0.6634375
+  height: 0.06175925925925926
+  role: body
+  content_type: text
+  description: 三、商旅平台酒店供应商采购项目五维效益综合评估
+- x: 0.044895833333333336
+  y: 0.11796296296296296
+  width: 0.67671875
+  height: 0.860462962962963
+  role: table
+  content_type: table
+  description: ''
+- x: 0.9211458333333333
+  y: 0.9057407407407407
+  width: 0.07390625
+  height: 0.049166666666666664
+  role: decoration
+  content_type: decorative
+  description: 7/14
+elements: []

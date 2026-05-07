@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1280 720" width="1280" height="720">
+  <rect width="1280" height="720" fill="#F8FAFC" rx="4"/>
+    <rect x="26" y="35" width="918" height="60" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="43" y="86" width="1169" height="173" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="43" y="260" width="837" height="30" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="56" y="303" width="1045" height="183" fill="#F59E0B" fill-opacity="0.15" stroke="#F59E0B" stroke-width="1" rx="2"/>
+  <rect x="56" y="516" width="1156" height="167" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="1179" y="652" width="94" height="35" fill="#EC4899" fill-opacity="0.1" stroke="#EC4899" stroke-width="1" rx="2"/>
+    <text x="30" y="47" fill="#3B82F6" font-size="10" font-family="monospace">[text] 二、新一期项目内容</text>
+  <text x="47" y="98" fill="#3B82F6" font-size="10" font-family="monospace">[text] （一）新一期采购项目总费用
+  根据上一期间夜总量180万间</text>
+  <text x="47" y="272" fill="#3B82F6" font-size="10" font-family="monospace">[text] （二）2026-2027两年预算</text>
+  <text x="60" y="315" fill="#F59E0B" font-size="10" font-family="monospace">[tabl]</text>
+  <text x="60" y="528" fill="#3B82F6" font-size="10" font-family="monospace">[text] 2026年说明：经向集团财务部门确认，2026年集团内部服务</text>
+  <text x="1183" y="664" fill="#EC4899" font-size="10" font-family="monospace">[deco] 6/14</text>
+</svg>

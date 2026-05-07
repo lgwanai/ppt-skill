@@ -1,0 +1,38 @@
+page_type: content
+layout_sub_type: grid
+description: 'Layout with 3 shapes: 3 text areas, 0 images. Type: content, Sub-type:
+  grid'
+layout_description: 'Layout with 3 shapes: 3 text areas, 0 images. Type: content,
+  Sub-type: grid'
+width_emu: 12192000
+height_emu: 6858000
+background_color: '#FFFFFF'
+background_description: White background (PowerPoint default)
+has_background_image: false
+regions:
+- x: 0.04869791666666667
+  y: 0.075
+  width: 0.6446875
+  height: 0.06175925925925926
+  role: decoration
+  content_type: text
+  description: 四、待决策事项
+- x: 0.07
+  y: 0.21444444444444444
+  width: 0.8969270833333334
+  height: 0.5608333333333333
+  role: body
+  content_type: text
+  description: '是否同意本次单体协议酒店托管服务商采购项目立项，通过公开比选方式引入2家单体协议酒店托管服务商，服务周期自合同签订生效之日起24个月。
+
+    立项理由：
+
+    ①现有...'
+- x: 0.9211458333333333
+  y: 0.9057407407407407
+  width: 0.07390625
+  height: 0.049166666666666664
+  role: decoration
+  content_type: text
+  description: 10/14
+elements: []

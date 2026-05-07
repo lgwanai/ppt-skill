@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1280 720" width="1280" height="720">
+  <rect width="1280" height="720" fill="#F8FAFC" rx="4"/>
+    <rect x="62" y="54" width="825" height="44" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="89" y="154" width="1148" height="403" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="1179" y="652" width="94" height="35" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+    <text x="66" y="66" fill="#3B82F6" font-size="10" font-family="monospace">[text] 四、待决策事项</text>
+  <text x="93" y="166" fill="#3B82F6" font-size="10" font-family="monospace">[text] 是否同意本次单体协议酒店托管服务商采购项目立项，通过公开比选</text>
+  <text x="1183" y="664" fill="#3B82F6" font-size="10" font-family="monospace">[text] 10/14</text>
+</svg>

@@ -69,13 +69,19 @@ from ppt_skill.spec.vision import VLClient
 
 
 _PAGE_TYPE_KEYWORDS: dict[str, list[str]] = {
-    "cover": ["title slide", "title", "cover", "封面", "首页", "标题幻灯片"],
-    "toc": ["table of contents", "contents", "agenda", "目录", "content", "outline"],
-    "transition": ["section", "divider", "section header", "过渡", "分隔",
-                   "section divider", "transition"],
-    "end_page": ["thank", "thanks", "q&a", "contact", "end", "close",
-                 "谢谢", "感谢", "致谢", "尾页", "结束"],
-}
+        "cover": ["title slide", "title", "cover", "封面", "首页", "标题幻灯片",
+                   "title slide", "title"],
+        "toc": ["table of contents", "contents", "agenda", "目录", "content",
+                "outline", "目 录"],
+        "transition": ["section", "divider", "section header", "过渡", "分隔",
+                       "section divider", "transition", "章节", "部分"],
+        "end_page": ["thank", "thanks", "q&a", "contact", "end", "close",
+                     "谢谢", "感谢", "致谢", "尾页", "结束"],
+    }
+
+
+_COVER_TITLE_KEYWORDS = ["关于", "项目", "方案", "计划", "申请", "报告", "立项",
+                          "预算", "采购", "招标", "述职", "总结", "规划"]
 
 
 def _detect_page_type_programmatic(layout_name: str, slide_index: int,
@@ -83,25 +89,25 @@ def _detect_page_type_programmatic(layout_name: str, slide_index: int,
                                     regions: list) -> tuple[str, float]:
     """Quick programmatic page type detection before VL refinement."""
     name_lower = layout_name.lower()
-
-    # Check keyword matches
-    for ptype, keywords in _PAGE_TYPE_KEYWORDS.items():
-        for kw in keywords:
-            if kw in name_lower:
-                return ptype, 0.8
-
-    # Position-based heuristics
     text_content = " ".join(r.text_preview for r in regions if r.text_preview)
     text_lower = text_content.lower()
 
-    # First slide is likely cover
+    # --- Cover detection: first slide with title content ---
     if slide_index == 0:
-        # Check for typical cover patterns: has image, centered title
-        image_count = sum(1 for r in regions if r.shape_type == "image")
-        if image_count >= 1 or "title" in name_lower:
-            return "cover", 0.7
+        # Strong signal: layout name matches
+        for kw in _PAGE_TYPE_KEYWORDS["cover"]:
+            if kw in name_lower:
+                return "cover", 0.9
+        # Medium signal: first slide has title-like text AND Chinese doc keywords
+        title_regions = [r for r in regions if r.shape_type == "text" and len(r.text_preview) > 5]
+        if title_regions:
+            full_text = " ".join(r.text_preview for r in title_regions)
+            if any(kw in full_text for kw in _COVER_TITLE_KEYWORDS):
+                return "cover", 0.75
+            if len(title_regions) >= 2 and total_slides > 3:
+                return "cover", 0.65
 
-    # Last slide is likely end page
+    # --- End page: last slide ---
     if slide_index == total_slides - 1:
         for kw in ["thank", "thanks", "q&a", "contact", "谢谢", "感谢"]:
             if kw in text_lower:
@@ -408,7 +414,8 @@ class SpecExtractor:
 
         # ── Theme extraction ──
         pptx_path_str = str(pptx_path.absolute())
-        colors = ColorPalette.from_theme_scheme(extract_theme_colors(pptx_path_str))
+        theme_colors = extract_theme_colors(pptx_path_str)  # raw dict for scheme resolution
+        colors = ColorPalette.from_theme_scheme(theme_colors)
         fonts_data = extract_theme_fonts(pptx_path_str)
         typography = Typography(
             heading_family=fonts_data.get("majorFont", ""),
@@ -513,8 +520,21 @@ class SpecExtractor:
 
             # Background
             bg_result = extract_slide_background(slide)
-            bg_color = bg_result.get("color", "") if bg_result else ""
-            bg_desc = bg_result.get("description", "") if bg_result else ""
+            bg_color = ""
+            bg_desc = ""
+            if bg_result and bg_result.get("color"):
+                bg_color = bg_result["color"]
+                bg_desc = bg_result.get("description", "")
+                # Resolve @scheme: references using extracted theme colors
+                if bg_color.startswith("@scheme:"):
+                    scheme_key = bg_color.split(":", 1)[1]
+                    resolved = theme_colors.get(scheme_key, "")
+                    if resolved and resolved.startswith("#"):
+                        bg_color = resolved
+            else:
+                # No explicit background → default white background
+                bg_color = "#FFFFFF"
+                bg_desc = "White background (PowerPoint default)"
 
             # Build page spec
             page_spec = PageLayoutSpec(
@@ -522,8 +542,8 @@ class SpecExtractor:
                 layout_sub_type=layout_sub_type,
                 description=vl_result.layout_description if vl_result else vl_desc,
                 vl_analysis=vl_result.raw_response if vl_result else "",
-                width_emu=prs.slide_width,
-                height_emu=prs.slide_height,
+                width_emu=int(prs.slide_width),
+                height_emu=int(prs.slide_height),
                 regions=spec_regions,
                 elements=_extract_elements(slide, assets),
                 background_description=(

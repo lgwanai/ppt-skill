@@ -78,8 +78,11 @@ def _classify_shape(shape) -> str:
 
     if shape.has_table:
         return "table"
-    if hasattr(shape, "chart"):
-        return "chart"
+    try:
+        if hasattr(shape, "chart") and shape.chart is not None:
+            return "chart"
+    except Exception:
+        pass
     if shape.has_text_frame and shape.text_frame.text.strip():
         if _is_decorative_shape(shape):
             return "decorative"

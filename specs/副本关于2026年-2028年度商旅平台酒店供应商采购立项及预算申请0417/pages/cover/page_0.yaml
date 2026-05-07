@@ -1,0 +1,38 @@
+page_type: cover
+layout_sub_type: top_bottom
+description: 'Layout with 3 shapes: 2 text areas, 0 images. Type: cover, Sub-type:
+  top_bottom'
+layout_description: 'Layout with 3 shapes: 2 text areas, 0 images. Type: cover, Sub-type:
+  top_bottom'
+width_emu: 12192000
+height_emu: 6858000
+background_color: '#FFFFFF'
+background_description: White background (PowerPoint default)
+has_background_image: false
+regions:
+- x: 0.07697916666666667
+  y: 0.6253703703703704
+  width: 0.8459895833333333
+  height: 0.17916666666666667
+  role: title
+  content_type: text
+  description: '企业电商事业部
+
+    2026年3月'
+- x: 0.11369791666666666
+  y: 0.09787037037037037
+  width: 0.7881770833333334
+  height: 0.5066666666666667
+  role: body
+  content_type: text
+  description: '关于2026年-2028年度商旅平台
+
+    协议酒店托管服务商采购立项及预算申请'
+- x: 0.9211458333333333
+  y: 0.9057407407407407
+  width: 0.07390625
+  height: 0.049166666666666664
+  role: decoration
+  content_type: decorative
+  description: 1/14
+elements: []
