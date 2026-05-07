@@ -66,12 +66,11 @@ def cmd_extract_spec(args: argparse.Namespace) -> int:
     extractor.save(spec)
 
     print(f"Spec saved: specs/{spec.metadata.get('name', 'spec')}/")
-    print(f"  Colors: {len(spec.colors.to_dict())} palette entries")
+    print(f"  Colors: {len(spec.palette.to_dict())} palette entries")
     print(f"  Fonts: {spec.typography.heading_family or 'unknown'} / {spec.typography.body_family or 'unknown'}")
     print(f"  Pages: {len(spec.pages)} → {', '.join(spec.page_types_found)}")
     if spec.layout_sub_types_found:
         print(f"  Layouts: {', '.join(spec.layout_sub_types_found)}")
-    print(f"  Assets: {spec.asset_count}")
     print(f"  VL analysis: {'enabled' if extractor.config.enabled else 'disabled'}")
     return 0
 

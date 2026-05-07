@@ -1,33 +1,30 @@
-"""Spec extraction module — design spec data model, theme extraction, and analysis.
-
-Enhanced with page-level classification, VL model analysis, and directory-based
-spec output. See enhanced_extractor.py for the new SpecExtractor interface.
-"""
+"""Spec extraction — design blueprint for PPT reproduction."""
 
 from ppt_skill.spec.spec_model import (
     ColorPalette,
     DensityLabel,
     DesignSpec,
+    Element,
+    ElementType,
+    ImageStyle,
     LayoutSubType,
-    PageElement,
-    PageLayoutSpec,
+    PageSpec,
     PageType,
+    Pos,
     PresentationLogic,
-    Region,
+    SemanticRole,
+    ShapeStyle,
+    SlideType,
+    TextStyle,
     Typography,
     VLModelConfig,
 )
 
 __all__ = [
-    "ColorPalette",
-    "DensityLabel",
-    "DesignSpec",
-    "LayoutSubType",
-    "PageElement",
-    "PageLayoutSpec",
-    "PageType",
-    "PresentationLogic",
-    "Region",
-    "Typography",
-    "VLModelConfig",
+    "ColorPalette", "DensityLabel", "DesignSpec",
+    "Element", "ElementType", "ImageStyle",
+    "LayoutSubType", "PageSpec", "PageType",
+    "Pos", "PresentationLogic",
+    "SemanticRole", "ShapeStyle", "SlideType",
+    "TextStyle", "Typography", "VLModelConfig",
 ]

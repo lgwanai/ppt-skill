@@ -22,7 +22,6 @@ from pathlib import Path
 from ppt_skill.spec.spec_model import (
     LayoutSubType,
     PageType,
-    Region,
     VLModelConfig,
 )
 
