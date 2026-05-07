@@ -153,7 +153,67 @@ def cmd_list_outlines(args: argparse.Namespace) -> int:
     return 0
 
 
-def main() -> int:
+def cmd_generate_pptx(args: argparse.Namespace) -> int:
+    """Generate PPTX from spec + content outline with agent-loop evaluation."""
+    from ppt_skill.ppt_generator import generate_pptx
+
+    spec_dir = Path(args.spec) if args.spec else None
+    outline_path = Path(args.outline) if args.outline else None
+
+    if not spec_dir or not spec_dir.exists():
+        print(f"Error: Spec directory not found: {spec_dir}", file=sys.stderr)
+        return 1
+    if not outline_path or not outline_path.exists():
+        print(f"Error: Outline file not found: {outline_path}", file=sys.stderr)
+        return 1
+
+    output = Path(args.output) if args.output else Path("output.pptx")
+    workers = int(args.workers) if args.workers else 4
+
+    print(f"Generating PPTX from spec: {spec_dir.name}")
+    print(f"Outline: {outline_path.name}")
+    print(f"Workers: {workers}")
+    print(f"Agent loop: max {5} iterations, threshold 90% style match")
+
+    # The generate_callback would be implemented by the AI runtime.
+    # For CLI standalone mode, this is a placeholder.
+    def generate_callback(prompt: str) -> str:
+        """Placeholder — in practice, the AI runtime calls an LLM."""
+        print(f"  [AI] Generating slide from prompt ({len(prompt)} chars)...")
+        # In real usage, this calls an LLM API
+        return '<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">'
+        f'<rect width="1280" height="720" fill="#FFFFFF"/>'
+        f'<text x="100" y="100" font-family="Arial" font-size="24">Generated Slide</text>'
+        f'</svg>'
+
+    try:
+        result = generate_pptx(
+            spec_dir=spec_dir,
+            outline_path=outline_path,
+            output_path=output,
+            generate_callback=generate_callback,
+            max_workers=workers,
+        )
+
+        print(f"\nGeneration complete:")
+        print(f"  Passed: {result.passed_count}/{len(result.slide_results)}")
+        print(f"  Avg score: {result.avg_score:.1%}")
+        print(f"  Total iterations: {result.total_iterations}")
+        if result.output_path:
+            print(f"  Output: {result.output_path}")
+
+        for sr in result.slide_results:
+            status = "✓" if sr.passed else "⚠"
+            print(f"  {status} Slide {sr.slide_index}: "
+                  f"{sr.page_type}/{sr.layout_sub_type} "
+                  f"score={sr.best_score:.0%} "
+                  f"iter={sr.iterations}")
+
+        return 0 if result.passed_count == len(result.slide_results) else 1
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     parser = argparse.ArgumentParser(
         description="PPT Skill — AI-powered presentation generation",
         prog="ppt-skill",
@@ -186,6 +246,13 @@ def main() -> int:
     # list-outlines
     sub.add_parser("list-outlines", help="List saved content outlines")
 
+    # generate-pptx
+    p_gen = sub.add_parser("generate-pptx", help="Generate PPTX from spec + outline (agent-loop)")
+    p_gen.add_argument("--spec", required=True, help="Spec directory (specs/<name>/)")
+    p_gen.add_argument("--outline", required=True, help="Content outline YAML file")
+    p_gen.add_argument("-o", "--output", default="output.pptx", help="Output PPTX path")
+    p_gen.add_argument("--workers", type=int, default=4, help="Parallel workers (default: 4)")
+
     args = parser.parse_args()
 
     dispatch = {
@@ -195,6 +262,7 @@ def main() -> int:
         "select-spec": cmd_select_spec,
         "gather-content": cmd_gather_content,
         "list-outlines": cmd_list_outlines,
+        "generate-pptx": cmd_generate_pptx,
     }
 
     handler = dispatch.get(args.command)
