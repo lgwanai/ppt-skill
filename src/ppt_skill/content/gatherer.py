@@ -173,10 +173,12 @@ class ContentGatherer:
         if mode == "skip_questions":
             self.session = QuestionSession()
             self.gathered_content = self._extract_content_from_input(user_input)
+            self.session.sections_identified = self._extract_sections(user_input)
         elif self.sufficiency.sufficient:
             # Input is rich enough — skip the interrogation
             self.session = QuestionSession()
             self.gathered_content = self._extract_content_from_input(user_input)
+            self.session.sections_identified = self._extract_sections(user_input)
         else:
             self.session = QuestionSession()
             self.gathered_content = self._extract_content_from_input(user_input)
