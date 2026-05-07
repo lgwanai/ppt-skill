@@ -1,139 +1,125 @@
 ---
 name: ppt-skill
 description: >
-  AI-powered PPT generation skill that analyzes existing PPTs to extract design
-  specifications (colors, fonts, layouts, presentation logic) and generates new
-  natively editable .pptx files from content outlines. Use when the user needs to
-  create professional presentations, analyze reference PPTX files for style extraction,
-  generate slide-by-slide content outlines, or convert SVG to native PowerPoint shapes.
-  Triggers: "create a PPT", "make slides", "generate a presentation", "pptx",
-  "extract design from pptx", "analyze pptx style", "ppt spec", "presentation outline",
-  "convert svg to pptx".
+  AI-powered PPT generation skill. Extracts design specs from existing PPTX files
+  (colors, fonts, layouts, presentation logic) and generates natively editable .pptx
+  files with real DrawingML shapes — not flattened images. Use the slash commands
+  /ppt-spec to analyze a reference PPTX and extract a design spec, or /ppt to
+  generate a presentation from content. Also use when the user asks to create slides,
+  make a presentation, generate pptx, analyze pptx style, extract ppt design,
+  convert svg to pptx, or needs a slide deck. Supports cover/toc/content/end_page
+  recognition, multi-layout content pages, VL model analysis, agent-loop style
+  verification with 90%+ fidelity, and multi-threaded generation.
 ---
 
 # PPT Skill
 
-Generate professional, natively editable PowerPoint files from content with
-spec-driven design. Analyze existing PPTs to extract styles, gather content
-through adaptive questioning, and produce PPTX with real DrawingML shapes.
+Spec-driven PPT generation: extract design DNA from reference PPTX → gather
+content → generate natively editable slides with agent-loop style verification.
+
+## Slash Commands
+
+| Command | Purpose |
+|---------|---------|
+| `/ppt-spec <file.pptx>` | Extract design spec from reference PPTX (cover/toc/content/end_page recognition + layout analysis) |
+| `/ppt <content or file>` | Generate PPT: gather content → confirm outline → generate PPTX with style verification |
 
 ## Quick Start
 
 ```bash
-# Extract design spec from an existing PPTX
+# Extract design spec from a reference PPTX
 python scripts/ppt_cli.py extract-spec reference.pptx
 
-# List and select active spec
-python scripts/ppt_cli.py list-specs
-python scripts/ppt_cli.py select-spec my_spec
+# Generate PPT from content (with agent-loop style verification)
+python scripts/ppt_cli.py generate-pptx --spec specs/my_spec/ --outline outline.yaml -o output.pptx --workers 4
 
-# Gather content and generate slide outline
-python scripts/ppt_cli.py gather-content "Write a presentation about Q3 results"
-
-# Convert SVGs to PPTX (Phase 1 pipeline)
+# Direct SVG to PPTX conversion
 python scripts/ppt_cli.py convert slide1.svg slide2.svg -o output.pptx
 ```
 
-## Core Workflow
-
-### 1. Spec Extraction (analyze existing PPT)
-
-Load a reference .pptx file and extract its design DNA:
-
-```
-python scripts/ppt_cli.py extract-spec reference.pptx
-```
-
-Output: `specs/<name>.yaml` — captures color palette (12 HEX values), font
-families/sizes/hierarchy, spatial layout patterns, slide type classifications
-(title, content, section_divider, image_text, data), and presentation rhythm
-(breathing/dense/anchor density classification).
-
-**See:** [references/spec-format.md](references/spec-format.md) for full spec schema.
-
-### 2. Content Gathering (adaptive questioning)
-
-Generate a slide-by-slide content outline from user input. When content is
-insufficient, asks section-level overview questions first, then gap-fills
-(8-question cap).
-
-```bash
-python scripts/ppt_cli.py gather-content "Topic or outline"
-python scripts/ppt_cli.py gather-content content_file.md
-
-# Skip questioning when input is detailed enough
-python scripts/ppt_cli.py gather-content detailed_outline.md --mode skip_questions
-```
-
-Output: YAML ContentOutline with per-slide title, body, layout type recommendation,
-and speaker notes — ready for PPT generation.
-
-### 3. PPT Generation (spec-driven)
-
-Generate a .pptx file from content outline + design spec. Every shape is a native
-DrawingML element (text, rect, circle, path, gradient) — NOT flattened images.
-Output is fully editable in PowerPoint.
-
-**[Phase 4 — in development]**
-
-### 4. Direct SVG → PPTX Conversion
-
-Convert SVG files directly to native PowerPoint shapes using the forked
-SVG→DrawingML pipeline:
-
-```bash
-python scripts/ppt_cli.py convert slide1.svg slide2.svg slide3.svg -o deck.pptx
-python scripts/ppt_cli.py convert svg/*.svg -o deck.pptx --skip-check
-```
-
-## CLI Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `convert <svg>... -o <pptx>` | Convert SVGs to native-shape PPTX |
-| `extract-spec <pptx>` | Extract design spec from reference PPTX |
-| `list-specs` | List all available design specs |
+| `extract-spec <pptx>` | Extract design spec → `specs/<name>/` directory (pages by type, assets, logic.yaml) |
+| `generate-pptx` | Generate PPTX from spec + outline with agent-loop eval (--spec --outline -o --workers) |
+| `convert <svg>... -o <pptx>` | Direct SVG→native-shape PPTX conversion |
+| `list-specs` | List available design specs |
 | `select-spec <name>` | Set active design spec |
-| `gather-content <text\|file>` | Generate content outline (adaptive questioning) |
+| `gather-content <text\|file>` | Content gathering → slide-by-slide outline (adaptive questioning, 8-question cap) |
 | `list-outlines` | List saved content outlines |
 
-All commands output structured results. Scripts must be run from the skill root
-directory for template path resolution.
+All scripts run from the skill root directory.
 
-## Architecture
+## Workflow
 
-```
-User Content
-    │
-    ├─→ Phase 3: ContentGatherer (adaptive questioning → ContentOutline)
-    │       │
-Spec File ←── Phase 2: SpecExtractor (PPTX → colors/fonts/layouts/logic)
-    │       │
-    └───→ Phase 4: PPT Generator (outline + spec → SVG → DrawingML PPTX)
-                │
-                └── Phase 1: SVG→DrawingML Converter (native shapes)
+### `/ppt-spec` — Extract Design Spec
+
+1. Read the reference PPTX with `python-pptx` + `lxml`
+2. Extract color palette (12 HEX values from theme1.xml), fonts, backgrounds
+3. Classify each page: cover / toc / transition / content / end_page
+4. For content pages, identify layout sub-type: left_right, top_bottom, etc.
+5. If `VL_ENABLED=true` in `config.txt`, use VL model for enhanced layout description
+6. Extract reusable assets (backgrounds, images)
+7. Analyze presentation logic (narrative, density rhythm, sections)
+8. Save as directory: `specs/<name>/` with `spec.yaml`, `pages/`, `assets/`, `logic.yaml`
+
+See [references/spec-format.md](references/spec-format.md).
+
+### `/ppt` — Generate Presentation
+
+1. **Assess sufficiency**: evaluate if user input has enough detail
+2. **If insufficient**: ask section-level overview questions, then gap-fill (8-question cap)
+3. **Generate outline**: slide-by-slide ContentOutline with titles, body, layout recommendations
+4. **User confirms** the outline before generation
+5. **Agent-loop generation** (per slide, in parallel):
+   - Match slide to correct spec page type (cover→cover spec, content→matching layout spec, etc.)
+   - Generate SVG with strict style constraints from spec
+   - Evaluate: color match, font match, layout IoU, background, density
+   - If score < 90% → add fix instructions, regenerate (max 5 iterations)
+   - All slides generated in parallel via ThreadPoolExecutor
+6. **Convert**: all SVGs → native-shape PPTX via SVG→DrawingML pipeline
+7. Output: editable `.pptx` with real PowerPoint shapes
+
+### Content Gathering Mode
+
+When the user just wants to prepare content without generating PPTX:
+
+1. Assess content sufficiency (4-dimension rubric: structure, detail, audience, scope)
+2. If sufficient → directly generate outline
+3. If insufficient → adaptive questioning: section-level overviews first, then gap-fill
+4. Output: `outlines/<name>.yaml` — ready for `/ppt` generation
+
+## Configuration
+
+Copy `config.example.txt` to `config.txt` for VL model analysis in spec extraction:
+
+```ini
+VL_ENABLED=true
+VL_PROVIDER=openai        # openai | anthropic | gemini | ollama
+VL_MODEL=gpt-4o
+VL_API_KEY=sk-...
 ```
 
 ## Resources
 
-### scripts/
-- `ppt_cli.py` — Unified CLI entry point
-- `ppt_skill/` — Python package (converter, spec, content, finalize, cli)
-
-### references/
-- `spec-format.md` — Design specification file schema
-
-### assets/
-- `templates/icons/` — 11,631 SVG icons (5 libraries)
-- `templates/charts/` — 70+ chart/infographic SVGs
+| Directory | Contents |
+|-----------|----------|
+| `scripts/ppt_cli.py` | CLI entry point |
+| `scripts/ppt_skill/` | Python package (converter, spec, content, finalize, evaluator) |
+| `references/spec-format.md` | Design spec schema |
+| `assets/templates/icons/` | 11,600+ SVG icons (5 libraries) |
+| `assets/templates/charts/` | 70+ chart/infographic SVGs |
+| `config.example.txt` | Model configuration template |
 
 ## Requirements
 
-- Python 3.10+
-- `python-pptx>=0.6.21`
-- `Pillow>=9.0.0`
-- `PyYAML>=6.0`
+Python 3.10+ with:
 
-```bash
-pip install -r requirements.txt
 ```
+python-pptx>=0.6.21
+Pillow>=9.0.0
+PyYAML>=6.0
+```
+
+Optional for VL analysis: `openai`, `anthropic`, or `google-generativeai`.
