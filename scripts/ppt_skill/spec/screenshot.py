@@ -71,24 +71,20 @@ def extract_slide_regions(slide) -> list[SlideRegion]:
 
 def _classify_shape(shape) -> str:
     """Classify a python-pptx shape into a type string."""
-    from pptx.shapes.base import BaseShape
-    from pptx.shapes.group import GroupShapes
     try:
         from pptx.shapes.picture import Picture
     except ImportError:
-        Picture = type(None)
+        Picture = None
 
     if shape.has_table:
         return "table"
     if hasattr(shape, "chart"):
         return "chart"
     if shape.has_text_frame and shape.text_frame.text.strip():
-        # Check if it's just a decorative shape with text
         if _is_decorative_shape(shape):
             return "decorative"
         return "text"
 
-    # Check shape_type for geometry
     if hasattr(shape, "shape_type") and shape.shape_type is not None:
         st = str(shape.shape_type)
         if "PICTURE" in st.upper():

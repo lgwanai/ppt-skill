@@ -1,0 +1,33 @@
+page_type: cover
+layout_sub_type: top_bottom
+description: 'Layout with 2 shapes: 2 text areas, 0 images. Type: cover, Sub-type:
+  top_bottom'
+layout_description: 'Layout with 2 shapes: 2 text areas, 0 images. Type: cover, Sub-type:
+  top_bottom'
+width_emu: !!python/object/new:pptx.util.Emu
+- 12191695
+height_emu: !!python/object/new:pptx.util.Emu
+- 6858000
+background_color: ''
+background_description: ''
+has_background_image: false
+regions:
+- x: 0.03750093813862634
+  y: 0.04004636920384952
+  width: 0.675016886495274
+  height: 0.16666666666666666
+  role: footer
+  content_type: text
+  description: Content Slide
+- x: 0.03750093813862634
+  y: 0.23333333333333334
+  width: 0.675016886495274
+  height: 0.659953776611257
+  role: body
+  content_type: text
+  description: 'Bullet point 1
+
+    Bullet point 2
+
+    Bullet point 3'
+elements: []

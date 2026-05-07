@@ -21,3 +21,4 @@ build/
 # Environment
 .env
 .env.local
+config.txt

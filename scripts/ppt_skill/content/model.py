@@ -23,7 +23,35 @@ from enum import Enum
 
 import yaml
 
-from ppt_skill.spec.extractor import _dataclass_to_dict
+# Self-contained serialization helper (avoids cross-package import from spec.extractor)
+def _dataclass_to_dict(obj) -> dict:
+    from dataclasses import asdict, is_dataclass
+    from enum import Enum
+    def _walk(d: dict) -> dict:
+        result = {}
+        for k, v in d.items():
+            if isinstance(v, Enum):
+                result[k] = v.value
+            elif isinstance(v, dict):
+                result[k] = _walk(v)
+            elif isinstance(v, list):
+                result[k] = [
+                    item.value if isinstance(item, Enum) else
+                    _walk(item) if isinstance(item, dict) else item
+                    for item in v
+                ]
+            else:
+                result[k] = v
+        return result
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return _walk(asdict(obj))
+    if isinstance(obj, dict):
+        return {k: _dataclass_to_dict(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_dataclass_to_dict(item) for item in obj]
+    if isinstance(obj, Enum):
+        return obj.value
+    return obj
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +164,7 @@ class ContentOutline:
                 issues.append(f"Slide {n}: body too short or empty")
 
             # Layout type
-            if slide.layout_type not in OutlineLayoutType:
+            if not isinstance(slide.layout_type, OutlineLayoutType):
                 issues.append(f"Slide {n}: invalid layout_type '{slide.layout_type}'")
 
             # Slide number sequence

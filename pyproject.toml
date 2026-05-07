@@ -3,16 +3,11 @@ name = "ppt-skill"
 version = "0.1.0"
 description = "AI-powered PPT generation from SVG with native DrawingML shapes — spec extraction, content gathering, and PPTX export"
 requires-python = ">=3.10"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["scripts"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "-v",
-    "--tb=short",
+dependencies = [
+    "python-pptx>=0.6.21",
+    "Pillow>=9.0.0",
+    "PyYAML>=6.0",
+    "lxml>=4.9.0",
 ]
 
 [tool.coverage.run]

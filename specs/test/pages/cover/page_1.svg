@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1279 720" width="1279" height="720">
+  <rect width="1279" height="720" fill="#F8FAFC" rx="4"/>
+    <rect x="48" y="28" width="864" height="120" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+  <rect x="48" y="168" width="864" height="475" fill="#3B82F6" fill-opacity="0.15" stroke="#3B82F6" stroke-width="1" rx="2"/>
+    <text x="52" y="40" fill="#3B82F6" font-size="10" font-family="monospace">[text] Content Slide</text>
+  <text x="52" y="180" fill="#3B82F6" font-size="10" font-family="monospace">[text] Bullet point 1
+Bullet point 2
+</text>
+</svg>

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import yaml
 
-from ppt_skill.spec.extractor import SpecExtractor
+from ppt_skill.spec.enhanced_extractor import SpecExtractor
 
 # Filename for the active spec marker
 _ACTIVE_FILE = ".active"
@@ -43,9 +43,13 @@ def extract_spec(name: str, pptx_path: str, specs_dir: str = "specs") -> Path:
         path = extract_spec("corporate-blue", "deck.pptx")
         print(path)  # → specs/corporate-blue.yaml
     """
-    extractor = SpecExtractor(pptx_path, name)
-    spec = extractor.extract()
-    output_path = extractor.save(specs_dir)
+    extractor = SpecExtractor()
+    spec = extractor.extract(Path(pptx_path))
+    spec.metadata["name"] = name
+    # Override the spec root to use the provided specs_dir
+    spec.metadata["specs_dir"] = specs_dir
+    extractor.save(spec, base_dir=specs_dir)
+    return Path(specs_dir) / name
 
     slide_count = len(spec.slides)
     print(f'\u2713 Spec "{name}" extracted from {pptx_path} \u2192 {output_path} ({slide_count} slides)')
@@ -53,94 +57,74 @@ def extract_spec(name: str, pptx_path: str, specs_dir: str = "specs") -> Path:
 
 
 def list_specs(specs_dir: str = "specs") -> list[str]:
-    """List all available design specs in the specs directory.
+    """List all available design specs (supports both flat and directory formats).
 
-    Scans for *.yaml files, reads metadata from each, and prints a
-    formatted table showing spec names with slide counts and extraction
-    dates.
-
-    Args:
-        specs_dir: Directory where spec YAML files are stored (default: "specs").
-
-    Returns:
-        List of spec names (without .yaml extension). Empty list if none found.
+    Returns spec names found from either:
+      - Flat: specs/<name>.yaml (legacy format)
+      - Directory: specs/<name>/spec.yaml (enhanced format)
     """
     spec_dir = Path(specs_dir)
     if not spec_dir.is_dir():
         print(f"No specs found in {specs_dir}/ directory. Use extract-spec to create one.")
         return []
 
-    yaml_files = sorted(spec_dir.glob("*.yaml"))
-    if not yaml_files:
+    names: set[str] = set()
+
+    # Legacy flat YAML format
+    for yf in spec_dir.glob("*.yaml"):
+        names.add(yf.stem)
+
+    # Enhanced directory format
+    for sub in spec_dir.iterdir():
+        if sub.is_dir() and (sub / "spec.yaml").exists():
+            names.add(sub.name)
+
+    if not names:
         print(f"No specs found in {specs_dir}/ directory. Use extract-spec to create one.")
         return []
 
-    # Read metadata from each spec
-    spec_entries: list[dict] = []
-    for yf in yaml_files:
-        try:
-            with open(yf, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-        except Exception:
-            data = {}
+    spec_list = sorted(names)
+    print(f"{'Name':<30} {'Slides':<8}")
+    print("-" * 50)
+    for name in spec_list:
+        # Try to read metadata
+        slide_count = "?"
+        # Check directory format first
+        spec_yaml = spec_dir / name / "spec.yaml"
+        if spec_yaml.exists():
+            try:
+                data = yaml.safe_load(spec_yaml.read_text(encoding="utf-8"))
+                meta = data.get("metadata", {}) if data else {}
+                slide_count = str(meta.get("slide_count", "?"))
+            except Exception:
+                pass
+        # Fall back to flat format
+        flat_yaml = spec_dir / f"{name}.yaml"
+        if slide_count == "?" and flat_yaml.exists():
+            try:
+                data = yaml.safe_load(flat_yaml.read_text(encoding="utf-8"))
+                slide_count = str(data.get("metadata", {}).get("slide_count", "?")) if data else "?"
+            except Exception:
+                pass
+        print(f"{name:<30} {slide_count:<8}")
 
-        metadata = data.get("metadata", {}) if isinstance(data, dict) else {}
-        name = metadata.get("name", yf.stem)
-        slide_count = metadata.get("slide_count", "?")
-        extracted_at = metadata.get("extracted_at", "")
-
-        # Format extraction date: truncate ISO timestamp to date only
-        if extracted_at and "T" in str(extracted_at):
-            extracted_at = str(extracted_at).split("T")[0]
-
-        spec_entries.append({
-            "name": name,
-            "slide_count": slide_count,
-            "extracted_at": extracted_at,
-        })
-
-    # Determine active spec
-    active_name = get_active_spec(specs_dir)
-
-    # Print table
-    print("Available specs:")
-    for entry in spec_entries:
-        name = entry["name"]
-        sc = entry["slide_count"]
-        date = entry["extracted_at"] or "unknown"
-        marker = " * " if name == active_name else "   "
-        print(f"  {marker}{name:<24} ({sc} slides, extracted {date})")
-
-    if active_name:
-        print(f"\nActive: {active_name}")
-
-    return [e["name"] for e in spec_entries]
+    return spec_list
 
 
 def select_spec(name: str, specs_dir: str = "specs") -> Path:
-    """Set a spec as the active specification.
-
-    Writes the spec name to a .active file inside specs_dir. This file
-    is a project-local state file (not version-controlled).
-
-    Args:
-        name: Spec name to activate (must correspond to specs_dir/<name>.yaml).
-        specs_dir: Directory where spec YAML files are stored (default: "specs").
-
-    Returns:
-        Path to the .active file.
-
-    Raises:
-        FileNotFoundError: If the spec file specs_dir/<name>.yaml doesn't exist.
-    """
+    """Set a spec as the active specification (supports both flat and directory formats)."""
     spec_dir = Path(specs_dir)
     spec_path = spec_dir / f"{name}.yaml"
+    spec_dir_path = spec_dir / name / "spec.yaml"
 
-    if not spec_path.is_file():
-        # List available specs for a helpful error
-        available = sorted(
-            [f.stem for f in spec_dir.glob("*.yaml") if f.is_file()]
-        ) if spec_dir.is_dir() else []
+    if not spec_path.is_file() and not spec_dir_path.is_file():
+        # List available specs for helpful error
+        available = []
+        if spec_dir.is_dir():
+            available = sorted(
+                [f.stem for f in spec_dir.glob("*.yaml") if f.is_file()]
+                + [d.name for d in spec_dir.iterdir() if d.is_dir() and (d / "spec.yaml").exists()]
+            )
         print(
             f"\u2717 Spec '{name}' not found.",
             f"Available: {', '.join(available)}" if available else "No specs available.",

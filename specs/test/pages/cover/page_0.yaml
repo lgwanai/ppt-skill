@@ -1,0 +1,29 @@
+page_type: cover
+layout_sub_type: top_bottom
+description: 'Layout with 2 shapes: 2 text areas, 0 images. Type: cover, Sub-type:
+  top_bottom'
+layout_description: 'Layout with 2 shapes: 2 text areas, 0 images. Type: cover, Sub-type:
+  top_bottom'
+width_emu: !!python/object/new:pptx.util.Emu
+- 12191695
+height_emu: !!python/object/new:pptx.util.Emu
+- 6858000
+background_color: ''
+background_description: ''
+has_background_image: false
+regions:
+- x: 0.0562514072079395
+  y: 0.3106481481481482
+  width: 0.6375159483566477
+  height: 0.21435185185185185
+  role: body
+  content_type: text
+  description: Test Presentation
+- x: 0.112502814415879
+  y: 0.5666666666666667
+  width: 0.5250131339407687
+  height: 0.25555555555555554
+  role: body
+  content_type: text
+  description: Extraction Test
+elements: []

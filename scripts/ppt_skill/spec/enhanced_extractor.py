@@ -407,11 +407,12 @@ class SpecExtractor:
         }
 
         # ── Theme extraction ──
-        colors = ColorPalette.from_theme_scheme(extract_theme_colors(prs))
-        fonts_data = extract_theme_fonts(prs)
+        pptx_path_str = str(pptx_path.absolute())
+        colors = ColorPalette.from_theme_scheme(extract_theme_colors(pptx_path_str))
+        fonts_data = extract_theme_fonts(pptx_path_str)
         typography = Typography(
-            heading_family=fonts_data.get("heading_family", ""),
-            body_family=fonts_data.get("body_family", ""),
+            heading_family=fonts_data.get("majorFont", ""),
+            body_family=fonts_data.get("minorFont", ""),
         )
 
         # ── Per-page analysis ──
@@ -581,9 +582,9 @@ class SpecExtractor:
             asset_count=len(all_assets),
         )
 
-    def save(self, spec: DesignSpec):
+    def save(self, spec: DesignSpec, base_dir: str = "specs"):
         """Save the spec as a directory structure."""
-        spec_dir = Path("specs") / spec.metadata.get("name", "spec")
+        spec_dir = Path(base_dir) / spec.metadata.get("name", "spec")
         spec_dir.mkdir(parents=True, exist_ok=True)
 
         # ── spec.yaml ──

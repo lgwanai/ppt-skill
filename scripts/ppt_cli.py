@@ -175,16 +175,21 @@ def cmd_generate_pptx(args: argparse.Namespace) -> int:
     print(f"Workers: {workers}")
     print(f"Agent loop: max {5} iterations, threshold 90% style match")
 
-    # The generate_callback would be implemented by the AI runtime.
-    # For CLI standalone mode, this is a placeholder.
+    # For CLI standalone mode, the generate_callback is a placeholder.
+    # In AI runtime (opencode/claude-code), the LLM handles generation.
     def generate_callback(prompt: str) -> str:
-        """Placeholder — in practice, the AI runtime calls an LLM."""
-        print(f"  [AI] Generating slide from prompt ({len(prompt)} chars)...")
-        # In real usage, this calls an LLM API
-        return '<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">'
-        f'<rect width="1280" height="720" fill="#FFFFFF"/>'
-        f'<text x="100" y="100" font-family="Arial" font-size="24">Generated Slide</text>'
-        f'</svg>'
+        import warnings
+        warnings.warn(
+            "generate-pptx in CLI mode uses placeholder SVG. "
+            "Use AI runtime for LLM-backed generation.",
+            RuntimeWarning,
+        )
+        return (
+            '<svg viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg">'
+            '<rect width="1280" height="720" fill="#FFFFFF"/>'
+            '<text x="100" y="100" font-family="Arial" font-size="24">Generated Slide</text>'
+            '</svg>'
+        )
 
     try:
         result = generate_pptx(
@@ -214,6 +219,9 @@ def cmd_generate_pptx(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="PPT Skill — AI-powered presentation generation",
         prog="ppt-skill",
