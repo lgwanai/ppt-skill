@@ -18,7 +18,6 @@ dist/
 build/
 *.egg-info/
 
-# Environment
-.env
-.env.local
-config.txt
+# Runtime artifacts
+specs/
+outlines/

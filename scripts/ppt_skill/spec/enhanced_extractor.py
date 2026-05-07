@@ -305,12 +305,13 @@ def _save_page_spec(spec: PageLayoutSpec, spec_dir: Path,
     )
 
     # Generate screenshot previews
-    try:
-        png_path = base / f"{page_name}.png"
-        svg_path = base / f"{page_name}.svg"
-        generate_slide_preview(prs, page_index, png_path, svg_path)
-    except Exception:
-        pass
+    if prs is not None:
+        try:
+            png_path = base / f"{page_name}.png"
+            svg_path = base / f"{page_name}.svg"
+            generate_slide_preview(prs, page_index, png_path, svg_path)
+        except Exception:
+            pass
 
 
 def _save_logic(logic: PresentationLogic, spec_dir: Path):
@@ -602,8 +603,13 @@ class SpecExtractor:
             asset_count=len(all_assets),
         )
 
-    def save(self, spec: DesignSpec, base_dir: str = "specs"):
-        """Save the spec as a directory structure."""
+    def save(self, spec: DesignSpec, base_dir: str = "specs", previews: bool = False):
+        """Save the spec as a directory structure.
+
+        Args:
+            base_dir: Root directory for specs (default "specs").
+            previews: If True, generate layout visualization SVGs for each page.
+        """
         spec_dir = Path(base_dir) / spec.metadata.get("name", "spec")
         spec_dir.mkdir(parents=True, exist_ok=True)
 
@@ -631,18 +637,22 @@ class SpecExtractor:
         _save_logic(spec.logic, spec_dir)
 
         # ── Per-page specs ──
-        # Need the original PPTX to generate previews
-        src_path = spec.metadata.get("source_pptx", "")
-        if src_path and Path(src_path).exists():
-            prs = Presentation(src_path)
+        if previews:
+            src_path = spec.metadata.get("source_pptx", "")
+            if src_path and Path(src_path).exists():
+                prs = Presentation(src_path)
+                for i, page in enumerate(spec.pages):
+                    try:
+                        _save_page_spec(page, spec_dir, i, prs)
+                    except Exception:
+                        pass
         else:
-            prs = None
-
-        for i, page in enumerate(spec.pages):
-            try:
-                _save_page_spec(page, spec_dir, i, prs)
-            except Exception:
-                pass
+            # YAML only — no preview SVGs
+            for i, page in enumerate(spec.pages):
+                try:
+                    _save_page_spec(page, spec_dir, i, None)
+                except Exception:
+                    pass
 
         print(f"Spec saved to: {spec_dir}/")
         print(f"  Pages: {len(spec.pages)} ({', '.join(spec.page_types_found)})")
