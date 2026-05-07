@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-05-06)
 
 ## Current Position
 
-Phase: 3 of 5 (Content Gathering) — **IN PROGRESS**
-Plan: 1 of 3 (03-01 executed — Content data model: 6 dataclasses + 1 enum, YAML contract with Phase 4)
-Status: In Progress
-Last activity: 2026-05-06 — Plan 03-01 executed: content data model (~7 min, 2 tasks, 2 files)
+Phase: 3 of 5 (Content Gathering) — **COMPLETE**
+Plan: 3 of 3 (03-03 executed — ContentGatherer orchestrator + CLI + 33 integration tests)
+Status: Complete
+Last activity: 2026-05-07 — Plan 03-03 executed: ContentGatherer orchestrator + CLI + integration tests (~10 min, 3 tasks, 3 files)
 
-Progress: [████████░░░░░░░░░░░░] 33%
+Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: ~8 min
-- Total execution time: ~56 min
+- Total execution time: ~66 min
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [████████░░░░░░░░░░░░] 33%
 |-------|-------|----------|----------|
 | 01-pipeline-foundation | 3 | ~30 min | ~10 min |
 | 02-spec-extraction | 3 | ~19 min | ~6.3 min |
-| 03-content-gathering | 1 | ~7 min | ~7 min |
+| 03-content-gathering | 3 | ~17 min | ~5.7 min |
 
 **Recent Trend:**
 - Plan 01-01: Forked 17 converter + 8 finalize modules (~10 min)
@@ -39,6 +39,8 @@ Progress: [████████░░░░░░░░░░░░] 33%
 - Plan 02-02: Slide classifier + layout/font/density analyzers (~6 min)
 - Plan 02-03: SpecExtractor orchestrator + CLI commands + 7 integration tests (~6 min)
 - Plan 03-01: Content data model (OutlineLayoutType enum + 6 dataclasses) (~7 min)
+- Plan 03-02: Sufficiency + questioning modules (~6 min)
+- Plan 03-03: ContentGatherer orchestrator + CLI + 33 integration tests (~10 min)
 
 *Updated after each plan completion*
 | Phase 01-pipeline-foundation P01-01 | 15 min | 3 tasks | 26 files |
@@ -47,6 +49,8 @@ Progress: [████████░░░░░░░░░░░░] 33%
 | Phase 02-spec-extraction P02 | 6 min | 4 tasks | 4 files |
 | Phase 02-spec-extraction P03 | 6 min | 3 tasks | 6 files |
 | Phase 03-content-gathering P01 | 7 min | 2 tasks | 2 files |
+| Phase 03-content-gathering P02 | 6 min | 3 tasks | 2 files |
+| Phase 03-content-gathering P03 | 10 min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -82,6 +86,10 @@ Recent decisions affecting current work:
 - [Phase 03-content-gathering]: QuestionSession budget starts at 8 with mark_asked() decrement — enforces max questioning limit
 - [Phase 03-content-gathering]: _dataclass_to_dict reused from ppt_skill.spec.extractor — same serialization pattern for enums and nested dataclasses
 - [Phase 03-content-gathering]: Sufficiency threshold documented but NOT hardcoded in dataclass — enforced in sufficiency.py module
+- [Phase 03-content-gathering]: ContentGatherer is a prompt-orchestrating state machine — LLM runtime processes prompts; Python code provides state tracking, validation, serialization
+- [Phase 03-content-gathering]: Layout type heuristics use keyword matching (comparison/TWO_COLUMN, images/IMAGE_TEXT, data/DATA, default/CONTENT) — simple and deterministic
+- [Phase 03-content-gathering]: skip_questions mode runs section identification for structure but bypasses all questioning — satisfies GEN-03
+- [Phase 03-content-gathering]: CLI commands auto-resolve spec_name via get_active_spec() when not provided — follows Phase 2 pattern
 
 ### Pending Todos
 
@@ -96,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-06
-Stopped at: Completed 03-01-PLAN.md — Content data model: OutlineLayoutType enum + 6 dataclasses. Phase 3 IN PROGRESS (1/3 plans).
-Resume file: .planning/phases/03-content-gathering/03-01-SUMMARY.md
+Last session: 2026-05-07
+Stopped at: Completed 03-03-PLAN.md — ContentGatherer orchestrator + CLI + 33 integration tests. Phase 3 COMPLETE (3/3 plans).
+Resume file: .planning/phases/03-content-gathering/03-03-SUMMARY.md
