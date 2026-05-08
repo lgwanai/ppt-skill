@@ -237,9 +237,10 @@ class PageSpec:
     height_inches: float = 0.0
 
     # Background
-    background_color: str = ""       # HEX
-    background_image: str = ""       # relative path in assets/
-    background_type: str = "solid"   # "solid" | "image" | "gradient" | "none"
+    background_color: str = ""
+    background_image: str = ""
+    background_type: str = "solid"
+    background_description: str = ""
     gradient_stops: list[dict] = field(default_factory=list)
 
     # Visual hierarchy summary
@@ -270,6 +271,7 @@ class PageSpec:
                 "type": self.background_type,
                 "color": self.background_color,
                 "image": self.background_image,
+                "description": self.background_description,
                 "gradient_stops": self.gradient_stops,
             },
             "visual_hierarchy": self.visual_hierarchy,

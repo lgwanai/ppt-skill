@@ -38,6 +38,10 @@ from ppt_skill.spec.element_extractor import (
     _infer_role,
 )
 from ppt_skill.spec.vision import VLClient
+from ppt_skill.spec.asset_extractor import (
+    extract_background_image,
+    extract_shape_images,
+)
 
 
 # ── Page type detection ──────────────────────────────────────────────
@@ -215,19 +219,26 @@ class SpecExtractor:
                 stype = _detect_layout_sub_type(elements)
                 sub_types.add(stype)
 
-            # Background
-            bg_result = extract_slide_background(slide)
-            bg_color = "#FFFFFF"
-            bg_image = ""
-            bg_type = "solid"
-            if bg_result and bg_result.get("color"):
-                c = bg_result["color"]
-                if c.startswith("@scheme:"):
-                    c = theme_colors.get(c.split(":", 1)[1], "#FFFFFF")
-                if c.startswith("#"):
-                    bg_color = c
-                else:
-                    bg_color = "#FFFFFF"
+            # ── Background ──
+            spec_dir_path = Path("specs") / metadata["name"]
+            bg_result = extract_background_image(slide, spec_dir_path, idx)
+            bg_color = bg_result.get("color", "#FFFFFF") if bg_result else "#FFFFFF"
+            bg_image = bg_result.get("image", "") if bg_result else ""
+            bg_type = bg_result.get("type", "solid") if bg_result else "solid"
+            bg_desc = bg_result.get("description", "White background") if bg_result else "White background"
+            gradient_stops = bg_result.get("gradient_stops", []) if bg_result else []
+
+            # ── Shape images (extract and save to assets/) ──
+            shape_assets: list[dict] = []
+            for shape in slide.shapes:
+                try:
+                    assets = extract_shape_images(shape, spec_dir_path, idx)
+                    shape_assets.extend(assets)
+                except Exception:
+                    pass
+
+            # Update element image counts
+            img_count = sum(1 for e in elements if e.element_type.value == "image")
 
             # Content density
             total_chars = sum(len(e.text) for e in elements if e.text)
@@ -243,13 +254,22 @@ class SpecExtractor:
 
             # Layout description
             text_count = sum(1 for e in elements if e.element_type.value == "text")
-            img_count = sum(1 for e in elements if e.element_type.value == "image")
             shape_count = sum(1 for e in elements if e.element_type.value == "shape")
-            layout_desc = (
+            asset_count = len(shape_assets)
+
+            desc_parts = [
                 f"{PageType(ptype).name}: {len(elements)} elements "
-                f"({text_count} texts, {img_count} images, {shape_count} shapes). "
-                f"Layout: {stype}. Hierarchy: {' → '.join(hierarchy) if hierarchy else 'flat'}"
-            )
+                f"({text_count} texts, {img_count} images, {shape_count} shapes).",
+                f"Layout: {stype}.",
+                f"Hierarchy: {' → '.join(hierarchy) if hierarchy else 'flat'}.",
+            ]
+            if bg_image:
+                desc_parts.append(f"Background image: {bg_image}.")
+            elif bg_color and bg_color != "#FFFFFF":
+                desc_parts.append(f"Background: {bg_color}.")
+            if asset_count > 0:
+                desc_parts.append(f"{asset_count} extracted assets.")
+            layout_desc = " ".join(desc_parts)
 
             page = PageSpec(
                 page_type=PageType(ptype),
@@ -261,6 +281,8 @@ class SpecExtractor:
                 background_color=bg_color,
                 background_image=bg_image,
                 background_type=bg_type,
+                background_description=bg_desc,
+                gradient_stops=gradient_stops,
                 visual_hierarchy=hierarchy,
                 elements=elements,
                 layout_description=layout_desc,
