@@ -154,6 +154,8 @@ class VLClient:
 
         if self.config.provider == "openai":
             return self._analyze_openai(image_path, LAYOUT_ANALYSIS_PROMPT)
+        elif self.config.provider == "doubao":
+            return self._analyze_openai(image_path, LAYOUT_ANALYSIS_PROMPT)
         elif self.config.provider == "anthropic":
             return self._analyze_anthropic(image_path, LAYOUT_ANALYSIS_PROMPT)
         elif self.config.provider == "gemini":
@@ -180,6 +182,8 @@ class VLClient:
         prompt += "\n" + page_context
 
         if self.config.provider == "openai":
+            return self._analyze_text_openai(prompt)
+        elif self.config.provider == "doubao":
             return self._analyze_text_openai(prompt)
         elif self.config.provider == "anthropic":
             return self._analyze_text_anthropic(prompt)
