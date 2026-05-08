@@ -1,30 +1,112 @@
-"""Asset extraction — backgrounds, images, and reusable visual elements from PPTX.
+"""Asset extraction — backgrounds, icons, and reusable decorative elements.
 
-Extracts:
-  1. Background images from slide / layout / master levels (blipFill with embed)
-  2. Picture shapes (png, jpg, emf, etc.)
-  3. Shape fill images (shapes with picture fills)
-  4. Background solid/gradient fills with hex colors
+Extracts and CLASSIFIES visual assets:
+  - BACKGROUND: Full-slide backgrounds (keep)
+  - ICON: Small images in margins/corners, typically repeated (keep)
+  - DECORATION: Accent shapes, lines, decorative image fills (keep)
+  - CHART: Data visualizations (DISCARD — content-dependent)
+  - CONTENT_IMAGE: Photos, screenshots in content area (DISCARD — content-dependent)
 
-All images saved to assets/ directory with descriptive filenames.
+Classification rules:
+  - area < 3% + in margin → ICON
+  - area < 15% + not main content → DECORATION
+  - chart/table shapes → DISCARD
+  - everything else in content zone → DISCARD
+
+All kept assets saved to specs/<name>/assets/.
 """
 
 from __future__ import annotations
 
 import io
 import re
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
 from lxml import etree
 
-# OOXML namespaces
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 
 
-# ── Background image extraction ──────────────────────────────────────
+class AssetType(str, Enum):
+    BACKGROUND = "background"
+    ICON = "icon"
+    DECORATION = "decoration"
+    CHART = "chart"
+    CONTENT_IMAGE = "content_image"
+
+
+@dataclass
+class AssetInfo:
+    type: AssetType
+    src: str
+    description: str
+    shape_name: str = ""
+    position: dict = None
+    size_ratio: float = 0.0  # fraction of slide area
+
+    def to_dict(self) -> dict:
+        d = {"type": self.type.value, "src": self.src, "description": self.description}
+        if self.shape_name:
+            d["shape_name"] = self.shape_name
+        if self.position:
+            d["position"] = self.position
+        return d
+
+
+# ── Classification ────────────────────────────────────────────────────
+
+
+def classify_image(img_w_emu: int, img_h_emu: int,
+                   slide_w_emu: int, slide_h_emu: int,
+                   shape_name: str = "",
+                   is_chart_shape: bool = False) -> AssetType:
+    """Classify an image asset based on size and position.
+
+    Uses heuristics:
+        - Charts/tables    → DISCARD
+        - < 3% slide area  → ICON (if in margins)
+        - < 15% slide area → DECORATION
+        - > 50% slide area → BACKGROUND
+        - Everything else  → CONTENT_IMAGE (discard)
+    """
+    if is_chart_shape:
+        return AssetType.CHART
+
+    if slide_w_emu <= 0 or slide_h_emu <= 0:
+        return AssetType.CONTENT_IMAGE
+
+    slide_area = slide_w_emu * slide_h_emu
+    img_area = img_w_emu * img_h_emu
+    ratio = img_area / slide_area
+
+    name_lower = shape_name.lower()
+
+    # Very small → likely icon if named like one
+    if ratio < 0.03:
+        if any(kw in name_lower for kw in ["icon", "logo", "图标"]):
+            return AssetType.ICON
+        return AssetType.DECORATION
+
+    # Small decorative elements
+    if ratio < 0.15:
+        if any(kw in name_lower for kw in ["icon", "logo", "图标", "decor", "装饰"]):
+            return AssetType.ICON
+        return AssetType.DECORATION
+
+    # Very large → background
+    if ratio > 0.5:
+        return AssetType.BACKGROUND
+
+    # Medium size in content area → content image (discard)
+    return AssetType.CONTENT_IMAGE
+
+
+# ── Background extraction ─────────────────────────────────────────────
 
 
 def extract_background_image(slide, spec_dir: Path,
@@ -172,26 +254,43 @@ def _extract_blip(blip_fill: etree._Element, slide, spec_dir: Path,
         return None
 
 
-# ── Image extraction from shapes ─────────────────────────────────────
+# ── Shape image extraction ────────────────────────────────────────────
 
 
-def extract_shape_images(shape, spec_dir: Path,
-                          page_idx: int) -> list[dict[str, Any]]:
-    """Extract all images from a shape (Picture, image fill, group children).
+def extract_shape_assets(shape, spec_dir: Path, page_idx: int,
+                          slide_w_emu: int = 0, slide_h_emu: int = 0,
+                          img_counter: list[int] | None = None
+                          ) -> list[AssetInfo]:
+    """Extract and classify images from a shape (Picture, image fill, group children).
 
-    Returns list of {type, src, width_px, height_px, position, description}.
+    Only keeps: BACKGROUND, ICON, DECORATION.
+    Discards: CHART, CONTENT_IMAGE.
     """
-    results: list[dict] = []
+    if img_counter is None:
+        img_counter = [0]
+    results: list[AssetInfo] = []
 
     # Direct Picture shapes
     try:
         from pptx.shapes.picture import Picture
         if isinstance(shape, Picture):
-            result = _save_picture(shape, spec_dir, page_idx, len(results))
-            if result:
-                results.append(result)
+            asset = _extract_picture_asset(shape, spec_dir, page_idx,
+                                            img_counter, slide_w_emu, slide_h_emu)
+            if asset and asset.type in (AssetType.BACKGROUND, AssetType.ICON,
+                                         AssetType.DECORATION):
+                results.append(asset)
             return results
     except ImportError:
+        pass
+
+    # Skip chart/table shapes
+    try:
+        if hasattr(shape, "has_table") and shape.has_table:
+            return results
+        if hasattr(shape, "chart"):
+            shape.chart
+            return results
+    except Exception:
         pass
 
     # Shapes with image fill
@@ -199,17 +298,21 @@ def extract_shape_images(shape, spec_dir: Path,
         if hasattr(shape, "fill"):
             from pptx.enum.dml import MSO_FILL_TYPE
             if shape.fill.type == MSO_FILL_TYPE.PICTURE:
-                result = _extract_fill_image(shape, spec_dir, page_idx, len(results))
-                if result:
-                    results.append(result)
+                asset = _extract_fill_asset(shape, spec_dir, page_idx,
+                                             img_counter, slide_w_emu, slide_h_emu)
+                if asset and asset.type in (AssetType.BACKGROUND, AssetType.ICON,
+                                             AssetType.DECORATION):
+                    results.append(asset)
     except Exception:
         pass
 
-    # Group shapes — recurse into children
+    # Group shapes — recurse
     try:
         if hasattr(shape, "shapes"):
             for child in shape.shapes:
-                child_results = extract_shape_images(child, spec_dir, page_idx)
+                child_results = extract_shape_assets(
+                    child, spec_dir, page_idx, slide_w_emu, slide_h_emu, img_counter
+                )
                 results.extend(child_results)
     except Exception:
         pass
@@ -217,48 +320,72 @@ def extract_shape_images(shape, spec_dir: Path,
     return results
 
 
-def _save_picture(picture, spec_dir: Path, page_idx: int,
-                   img_idx: int) -> dict[str, Any] | None:
-    """Save a Picture shape's image to assets/."""
+def _extract_picture_asset(picture, spec_dir: Path, page_idx: int,
+                            img_counter: list[int],
+                            slide_w_emu: int, slide_h_emu: int) -> AssetInfo | None:
+    """Extract and classify a Picture shape."""
     try:
         image = picture.image
         blob = image.blob
         ext = _content_type_to_ext(image.content_type)
 
+        # Classify first (don't save charts/content)
+        asset_type = classify_image(
+            img_w_emu=(picture.width or 0),
+            img_h_emu=(picture.height or 0),
+            slide_w_emu=slide_w_emu,
+            slide_h_emu=slide_h_emu,
+            shape_name=picture.name,
+        )
+
+        if asset_type in (AssetType.CHART, AssetType.CONTENT_IMAGE):
+            return AssetInfo(type=asset_type, src="", description=f"[DISCARDED] {picture.name}")
+
+        # Save
         assets_dir = spec_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
+        prefix = asset_type.value[:3]  # "ico", "dec", "bac"
+        n = img_counter[0]
+        img_counter[0] += 1
+        filename = f"{prefix}_{page_idx:02d}_{n:02d}.{ext}"
+        (assets_dir / filename).write_bytes(blob)
 
-        name = f"p{page_idx:02d}_{img_idx:02d}"
-        filename = f"{name}.{ext}"
-        filepath = assets_dir / filename
-        filepath.write_bytes(blob)
-
-        # Get position info
-        x = (picture.left or 0) / 914400  # EMU to inches
+        x = (picture.left or 0) / 914400
         y = (picture.top or 0) / 914400
         w = (picture.width or 0) / 914400
         h = (picture.height or 0) / 914400
 
-        return {
-            "type": "image",
-            "src": f"assets/{filename}",
-            "width_px": getattr(image, "width", 0) or 0,
-            "height_px": getattr(image, "height", 0) or 0,
-            "position": {"x": round(x, 2), "y": round(y, 2),
-                         "w": round(w, 2), "h": round(h, 2)},
-            "description": f"Image: {filename} ({w:.1f}x{h:.1f} in, at {x:.1f},{y:.1f})",
-            "shape_name": picture.name,
-        }
+        return AssetInfo(
+            type=asset_type,
+            src=f"assets/{filename}",
+            shape_name=picture.name,
+            position={"x": round(x, 2), "y": round(y, 2), "w": round(w, 2), "h": round(h, 2)},
+            description=f"{asset_type.value}: {filename} ({w:.1f}x{h:.1f}in, at {x:.1f},{y:.1f})",
+            size_ratio=((picture.width or 0) * (picture.height or 0)) / (slide_w_emu * slide_h_emu) if slide_w_emu and slide_h_emu else 0,
+        )
     except Exception:
         return None
 
 
-def _extract_fill_image(shape, spec_dir: Path, page_idx: int,
-                         img_idx: int) -> dict[str, Any] | None:
-    """Extract image fill from a shape using XML."""
+def _extract_fill_asset(shape, spec_dir: Path, page_idx: int,
+                         img_counter: list[int],
+                         slide_w_emu: int, slide_h_emu: int) -> AssetInfo | None:
+    """Extract and classify a shape's image fill."""
     try:
+        # Classify first
+        asset_type = classify_image(
+            img_w_emu=(shape.width or 0),
+            img_h_emu=(shape.height or 0),
+            slide_w_emu=slide_w_emu,
+            slide_h_emu=slide_h_emu,
+            shape_name=shape.name,
+        )
+
+        if asset_type in (AssetType.CHART, AssetType.CONTENT_IMAGE):
+            return AssetInfo(type=asset_type, src="", description=f"[DISCARDED] {shape.name} fill")
+
+        # Extract blip embed from XML
         xml = shape._element.xml
-        # Find blipFill embed reference
         match = re.search(r'<a:blip[^>]*r:embed="([^"]*)"', xml)
         if not match:
             return None
@@ -274,25 +401,25 @@ def _extract_fill_image(shape, spec_dir: Path, page_idx: int,
 
         assets_dir = spec_dir / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
-
-        name = f"p{page_idx:02d}_{img_idx:02d}"
-        filename = f"{name}.{ext}"
-        filepath = assets_dir / filename
-        filepath.write_bytes(blob)
+        prefix = asset_type.value[:3]
+        n = img_counter[0]
+        img_counter[0] += 1
+        filename = f"{prefix}_{page_idx:02d}_{n:02d}.{ext}"
+        (assets_dir / filename).write_bytes(blob)
 
         x = (shape.left or 0) / 914400
         y = (shape.top or 0) / 914400
         w = (shape.width or 0) / 914400
         h = (shape.height or 0) / 914400
 
-        return {
-            "type": "image_fill",
-            "src": f"assets/{filename}",
-            "position": {"x": round(x, 2), "y": round(y, 2),
-                         "w": round(w, 2), "h": round(h, 2)},
-            "description": f"Fill image: {filename} (in shape '{shape.name}')",
-            "shape_name": shape.name,
-        }
+        return AssetInfo(
+            type=asset_type,
+            src=f"assets/{filename}",
+            shape_name=shape.name,
+            position={"x": round(x, 2), "y": round(y, 2), "w": round(w, 2), "h": round(h, 2)},
+            description=f"{asset_type.value}: {filename} (fill in '{shape.name}')",
+            size_ratio=((shape.width or 0) * (shape.height or 0)) / (slide_w_emu * slide_h_emu) if slide_w_emu and slide_h_emu else 0,
+        )
     except Exception:
         return None
 

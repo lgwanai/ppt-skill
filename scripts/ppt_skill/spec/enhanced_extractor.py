@@ -40,7 +40,8 @@ from ppt_skill.spec.element_extractor import (
 from ppt_skill.spec.vision import VLClient
 from ppt_skill.spec.asset_extractor import (
     extract_background_image,
-    extract_shape_images,
+    extract_shape_assets,
+    AssetInfo,
 )
 
 
@@ -228,11 +229,12 @@ class SpecExtractor:
             bg_desc = bg_result.get("description", "White background") if bg_result else "White background"
             gradient_stops = bg_result.get("gradient_stops", []) if bg_result else []
 
-            # ── Shape images (extract and save to assets/) ──
-            shape_assets: list[dict] = []
+            # ── Shape assets (classify + extract, discard content images) ──
+            shape_assets: list[AssetInfo] = []
             for shape in slide.shapes:
                 try:
-                    assets = extract_shape_images(shape, spec_dir_path, idx)
+                    assets = extract_shape_assets(shape, spec_dir_path, idx,
+                                                   slide_w_emu=sw, slide_h_emu=sh)
                     shape_assets.extend(assets)
                 except Exception:
                     pass
