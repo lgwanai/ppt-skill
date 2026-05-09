@@ -49,10 +49,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _SCHEME_TO_PALETTE: dict[str, str] = {
-    "dk1":      "background1",
-    "dk2":      "background2",
-    "lt1":      "text1",
-    "lt2":      "text2",
+    "dk1":      "dark1",
+    "dk2":      "dark2",
+    "lt1":      "light1",
+    "lt2":      "light2",
     "accent1":  "accent1",
     "accent2":  "accent2",
     "accent3":  "accent3",

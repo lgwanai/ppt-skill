@@ -39,7 +39,7 @@ from ppt_skill.content.questioning import (
     identify_content_gaps,
 )
 from ppt_skill.content.sufficiency import assess_sufficiency
-from ppt_skill.spec.extractor import _dataclass_to_dict
+from ppt_skill.content.model import _dataclass_to_dict
 
 
 # ---------------------------------------------------------------------------

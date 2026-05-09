@@ -323,6 +323,8 @@ class ColorPalette:
 class Typography:
     heading_family: str = ""
     body_family: str = ""
+    heading_sizes: dict = field(default_factory=dict)
+    body_sizes: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {"heading_family": self.heading_family, "body_family": self.body_family}
@@ -372,17 +374,58 @@ class DesignSpec:
     page_types_found: list[str] = field(default_factory=list)
     layout_sub_types_found: list[str] = field(default_factory=list)
 
+    # Legacy fields for backward compatibility
+    slides_legacy: list = field(default_factory=list)
+    source_config: dict = field(default_factory=dict)
+
+    # Backward-compat properties
+    @property
+    def colors(self): return self.palette
+
+    @colors.setter
+    def colors(self, v): self.palette = v
+
+    @property
+    def slides(self): return self.slides_legacy or self.pages
+
+    @slides.setter
+    def slides(self, v): self.slides_legacy = v
+
+    @property
+    def rhythm(self): return self.logic
+
+    @rhythm.setter
+    def rhythm(self, v): self.logic = v
+
     def to_dict(self) -> dict:
+        # Build backward-compatible dict with old field names
+        rhythm_data = {
+            "sequencing_pattern": self.logic.sequencing_pattern,
+            "density_profile": self.logic.density_profile,
+            "story_arc": self.logic.story_arc,
+        }
+        slides_data = []
+        for i, s in enumerate(self.slides):
+            item = {"slide_index": getattr(s, 'slide_index', i)}
+            if hasattr(s, 'slide_type'):
+                st = s.slide_type
+                item["slide_type"] = st.value if hasattr(st, 'value') else str(st)
+            elif hasattr(s, 'page_type'):
+                item["page_type"] = s.page_type.value
+            if hasattr(s, 'density'):
+                d = s.density
+                item["density"] = d.value if hasattr(d, 'value') else str(d)
+            if hasattr(s, 'layout_name'): item["layout_name"] = s.layout_name
+            slides_data.append(item)
         return {
             "metadata": self.metadata,
-            "palette": self.palette.to_dict(),
+            "colors": self.palette.to_dict(),
             "typography": self.typography.to_dict(),
+            "rhythm": rhythm_data,
+            "slides": slides_data,
             "page_types_found": self.page_types_found,
             "layout_sub_types_found": self.layout_sub_types_found,
-            "pages_summary": [
-                f"page_{i}: {p.page_type.value}/{p.layout_sub_type.value}"
-                for i, p in enumerate(self.pages)
-            ],
+            "source_config": self.source_config,
         }
 
 
@@ -409,6 +452,31 @@ class SlideType(str, Enum):
     IMAGE_TEXT = "image_text"
     DATA = "data"
 
+@dataclass
+class SlideSpec:
+    """Legacy per-slide spec (Phase 2). Prefer PageSpec going forward."""
+    slide_index: int = 0
+    slide_type: SlideType = field(default=SlideType.CONTENT)
+    layout_name: str = ""
+    density: DensityLabel = field(default=DensityLabel.DENSE)
+    char_count: int = 0
+    image_count: int = 0
+    shape_count: int = 0
+    background: dict | None = None
+
+@dataclass
+class LayoutMargins:
+    """Legacy layout margins."""
+    top: float = 0.0; bottom: float = 0.0; left: float = 0.0; right: float = 0.0
+    title_x: float = 0.0; title_y: float = 0.0; title_width: float = 0.0; title_height: float = 0.0
+
+@dataclass
+class SlideLayoutSpec:
+    """Legacy slide layout spec."""
+    slide_type: SlideType = field(default=SlideType.CONTENT)
+    margins: LayoutMargins = field(default_factory=LayoutMargins)
+    title_position: dict = field(default_factory=dict)
+    content_positions: list = field(default_factory=list)
 
 PresentationRhythm = PresentationLogic
 
@@ -416,8 +484,9 @@ PresentationRhythm = PresentationLogic
 __all__ = [
     "ColorPalette", "DensityLabel", "DesignSpec",
     "Element", "ElementType", "ImageStyle",
-    "LayoutSubType", "PageSpec", "PageType",
+    "LayoutMargins", "LayoutSubType",
+    "PageSpec", "PageType",
     "Pos", "PresentationLogic", "PresentationRhythm",
-    "SemanticRole", "ShapeStyle", "SlideType",
-    "TextStyle", "Typography", "VLModelConfig",
+    "SemanticRole", "ShapeStyle", "SlideLayoutSpec", "SlideSpec",
+    "SlideType", "TextStyle", "Typography", "VLModelConfig",
 ]
