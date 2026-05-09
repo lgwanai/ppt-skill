@@ -298,6 +298,24 @@ class ColorPalette:
     hyperlink: str = ""
     followed_hyperlink: str = ""
 
+    # Backward-compat aliases
+    @property
+    def background1(self): return self.dark1
+    @background1.setter
+    def background1(self, v): self.dark1 = v
+    @property
+    def background2(self): return self.dark2
+    @background2.setter
+    def background2(self, v): self.dark2 = v
+    @property
+    def text1(self): return self.light1
+    @text1.setter
+    def text1(self, v): self.light1 = v
+    @property
+    def text2(self): return self.light2
+    @text2.setter
+    def text2(self, v): self.light2 = v
+
     def to_dict(self) -> dict[str, str]:
         return {k: v for k, v in self.__dict__.items() if v}
 
