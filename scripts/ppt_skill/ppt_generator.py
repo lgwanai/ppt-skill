@@ -1,11 +1,15 @@
-"""Multi-threaded PPT generator — spec-driven with agent-loop evaluation.
+"""Multi-threaded PPT generator — spec-driven with two-phase agent-loop evaluation.
+
+Phase 1: Spec Matching — color, fonts, layout match
+Phase 2: Layout Design — WPS hierarchy, typography, whitespace (using prompt-ppt-layout.md)
 
 Orchestrates parallel slide generation:
   1. Load spec (directory-based) + content outline
   2. Match each slide to the correct spec page type
   3. Generate slides in parallel using ThreadPoolExecutor
-  4. Each slide goes through agent-loop evaluation
-  5. Convert all SVGs to native-shape PPTX
+  4. Each slide goes through Phase 1 agent-loop (spec matching)
+  5. Each slide goes through Phase 2 agent-loop (layout design)
+  6. Convert all SVGs to native-shape PPTX
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from typing import Any, Callable
 from ppt_skill.slide_generator import generate_slide_with_loop, SlideResult
 from ppt_skill.style_evaluator import StyleReport
 from ppt_skill.pipeline import convert_svg_to_pptx
+from ppt_skill.layout.designer import LayoutDesigner, LayoutResult
 
 
 MAX_WORKERS = 4  # Default parallel workers
@@ -28,10 +33,13 @@ MAX_WORKERS = 4  # Default parallel workers
 class GenerationResult:
     """Complete PPT generation result."""
     slide_results: list[SlideResult] = field(default_factory=list)
+    layout_results: list[LayoutResult] = field(default_factory=list)
     output_path: Path | None = None
     passed_count: int = 0
     failed_count: int = 0
+    layout_passed_count: int = 0
     total_iterations: int = 0
+    layout_iterations: int = 0
     avg_score: float = 0.0
 
 
@@ -210,6 +218,28 @@ def generate_pptx(
 
     # Sort by slide number
     result.slide_results.sort(key=lambda r: r.slide_index)
+
+    # Phase 2: Layout Design (new)
+    designer = LayoutDesigner()
+    for i, sr in enumerate(result.slide_results):
+        if sr.passed:
+            # Apply layout design using WPS hierarchy
+            slide_content = {
+                "w": tasks[i].get("section_name", ""),
+                "p": tasks[i].get("title", ""),
+                "s": tasks[i].get("body", []),
+            }
+            spec_page = next(
+                (p for p in spec_pages if p.get("page_type") == sr.page_type),
+                {}
+            )
+            layout_result = designer.design(slide_content, spec_page, None)
+            result.layout_results.append(layout_result)
+            if layout_result.passed:
+                result.layout_passed_count += 1
+            result.layout_iterations += layout_result.iterations
+        else:
+            result.layout_results.append(LayoutResult(passed=False))
 
     # Collect SVGs and convert to PPTX
     svg_paths: list[Path] = []

@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ppt-skill"
 version = "0.1.0"
@@ -9,6 +13,10 @@ dependencies = [
     "PyYAML>=6.0",
     "lxml>=4.9.0",
 ]
+
+[tool.setuptools.packages.find]
+where = ["scripts"]
+include = ["ppt_skill*"]
 
 [tool.coverage.run]
 source = ["scripts"]

@@ -5,13 +5,15 @@ PPT Skill — CLI entry point.
 Unified command-line interface for the PPT generation skill:
   - convert: SVG → native-shape PPTX conversion
   - extract-spec: Extract design spec from reference PPTX
+  - outline: Generate content outline using WPS model (prompt-ppt-content.md)
   - gather-content: Content questioning → outline generation
-  - generate-pptx: Generate PPTX from outline + spec (Phase 4 placeholder)
+  - generate-pptx: Generate PPTX from outline + spec (two-phase: spec matching + layout design)
 
 Usage:
   python scripts/ppt_cli.py convert input.svg -o output.pptx
   python scripts/ppt_cli.py extract-spec reference.pptx
-  python scripts/ppt_cli.py gather-content "topic or content text"
+  python scripts/ppt_cli.py outline "AI in Healthcare" -o outline.md
+  python scripts/ppt_cli.py generate-pptx --spec specs/my_spec --outline outline.yaml -o output.pptx
 """
 
 import argparse
@@ -135,6 +137,28 @@ def cmd_gather_content(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_outline(args: argparse.Namespace) -> int:
+    """Generate PPT content outline using WPS model and prompt-ppt-content.md principles."""
+    from ppt_skill.content.outline_generator import OutlineGenerator
+
+    input_text = args.input
+    if Path(args.input).exists():
+        input_text = Path(args.input).read_text()
+
+    generator = OutlineGenerator()
+    outline = generator.generate(input_text, mode=args.mode)
+
+    # Output as markdown
+    print(outline.to_markdown())
+
+    # Optionally save
+    if args.output:
+        path = generator.save(outline, args.output)
+        print(f"\nOutline saved to: {path}", file=sys.stderr)
+
+    return 0
+
+
 def cmd_list_outlines(args: argparse.Namespace) -> int:
     """List all saved content outlines."""
     outlines_dir = Path("outlines")
@@ -250,6 +274,13 @@ def main() -> int:
     p_gather.add_argument("--mode", choices=["assess", "question", "skip_questions"],
                           default="assess", help="Gathering mode")
 
+    # outline (ppt-outline)
+    p_outline = sub.add_parser("outline", help="Generate PPT content outline using WPS model")
+    p_outline.add_argument("input", help="Topic, article, or existing outline")
+    p_outline.add_argument("--mode", choices=["auto", "skip_questions"],
+                           default="auto", help="Generation mode")
+    p_outline.add_argument("-o", "--output", help="Save outline to file (.md or .yaml)")
+
     # list-outlines
     sub.add_parser("list-outlines", help="List saved content outlines")
 
@@ -268,6 +299,7 @@ def main() -> int:
         "list-specs": cmd_list_specs,
         "select-spec": cmd_select_spec,
         "gather-content": cmd_gather_content,
+        "outline": cmd_outline,
         "list-outlines": cmd_list_outlines,
         "generate-pptx": cmd_generate_pptx,
     }
