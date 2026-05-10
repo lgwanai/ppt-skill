@@ -21,3 +21,4 @@ build/
 # Runtime artifacts
 specs/
 outlines/
+config.txt
