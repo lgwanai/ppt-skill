@@ -24,3 +24,4 @@ outlines/
 config.txt
 *.pptx
 tests/*.pptx
+*.egg-info

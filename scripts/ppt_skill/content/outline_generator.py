@@ -144,22 +144,31 @@ class ContentOutlineResult:
     metadata: dict = field(default_factory=dict)
 
     def to_markdown(self) -> str:
-        """Convert outline to markdown format."""
+        """Convert outline to markdown (no W/P/S labels, follows ##/### rules).
+
+        ## [section] = chapter divider (NOT a page)
+        ### [title] = actual page
+        ### 转场页：[title] = transition page
+        ### 强调页：[title] = emphasis page
+        ## 封面 / ## 结尾页 = special pages
+        """
         lines = [f"# {self.presentation_title}", ""]
 
         # Cover
         cover = next((s for s in self.slides if s.page_type == "cover"), None)
         if cover:
-            lines.append("## Cover")
-            lines.append(f"- Main title: {cover.title}")
-            lines.append(f"- Subtitle: {cover.p}")
-            lines.append(f"- Notes: {cover.notes}")
+            lines.append("## 封面")
+            lines.append(f"- 主标题：{cover.title}")
+            if cover.p:
+                lines.append(f"- 副标题：{cover.p}")
+            if cover.notes:
+                lines.append(f"- {cover.notes}")
             lines.append("")
 
         # TOC
         toc = next((s for s in self.slides if s.page_type == "toc"), None)
-        if toc:
-            lines.append("## Table of Contents")
+        if toc and self.sections:
+            lines.append("## 目录")
             for i, section in enumerate(self.sections, 1):
                 lines.append(f"{i}. {section}")
             lines.append("")
@@ -170,29 +179,31 @@ class ContentOutlineResult:
         # Sections
         current_section = ""
         for slide in self.slides:
-            if slide.page_type in ("transition", "content"):
-                if slide.section_name and slide.section_name != current_section:
-                    current_section = slide.section_name
-                    lines.append(f"## {current_section}")
-                    lines.append("")
+            # Section divider (only on first slide of each section)
+            if slide.section_name and slide.section_name != current_section:
+                current_section = slide.section_name
+                lines.append(f"## {current_section}")
+                lines.append("")
 
             if slide.page_type == "transition":
-                lines.append(f"### Transition: {slide.title}")
+                lines.append(f"### 转场页：{slide.title}")
+                lines.append("")
+            elif slide.page_type == "emphasis":
+                lines.append(f"### 强调页：{slide.p or slide.title}")
                 lines.append("")
             elif slide.page_type == "content":
-                lines.append(f"### Slide {slide.slide_number}: {slide.title}")
-                lines.append(f"**W (Navigation)**: {slide.w}")
-                lines.append(f"**P (Core Point)**: {slide.p}")
-                lines.append("**S (Support)**:")
+                lines.append(f"### {slide.title}")
+                if slide.p:
+                    lines.append(slide.p)
+                    lines.append("")
                 for s_item in slide.s:
                     lines.append(f"- {s_item}")
                 lines.append("")
-            elif slide.page_type == "emphasis":
-                lines.append(f"### Emphasis: {slide.p}")
-                lines.append("")
             elif slide.page_type == "end":
-                lines.append("## End")
-                lines.append(f"- {slide.title}")
+                lines.append("## 结尾页")
+                lines.append(f"- 致谢：{slide.title}")
+                if slide.notes:
+                    lines.append(f"- {slide.notes}")
                 lines.append("")
 
         return "\n".join(lines)
@@ -338,17 +349,17 @@ class OutlineGenerator:
 
     @staticmethod
     def load(path: Path | str) -> ContentOutlineResult:
-        """Load outline from file."""
+        """Load outline from markdown file (##/### format)."""
         path = Path(path)
         content = path.read_text(encoding="utf-8")
 
         if path.suffix in (".yaml", ".yml"):
             return ContentOutlineResult.from_yaml(content)
 
-        # Parse markdown format
         lines = content.splitlines()
         title = ""
         slides: list[SlideOutline] = []
+        sections: list[str] = []
         current_section = ""
 
         i = 0
@@ -357,44 +368,62 @@ class OutlineGenerator:
 
             if line.startswith("# "):
                 title = line[2:].strip()
-            elif line.startswith("## "):
-                current_section = line[3:].strip()
-            elif line.startswith("### Slide "):
-                slide_num = int(line.split()[2].rstrip(":"))
-                slide_title = line.split(":", 1)[1].strip() if ":" in line else ""
+            elif line.startswith("## 封面"):
+                # Find body lines after ## 封面
                 i += 1
-                w = p = ""
-                s: list[str] = []
-                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("###"):
-                    part = lines[i].strip()
-                    if part.startswith("**W"):
-                        w = part.split("**: ", 1)[1] if "**: " in part else ""
-                    elif part.startswith("**P"):
-                        p = part.split("**: ", 1)[1] if "**: " in part else ""
-                    elif part.startswith("**S"):
-                        pass
-                    elif part.startswith("- "):
-                        s.append(part[2:])
+                bt = title; bp = ""; bn = ""
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("## "):
+                    t = lines[i].strip()
+                    if t.startswith("- 主标题："): bt = t[5:].strip()
+                    elif t.startswith("- 副标题："): bp = t[5:].strip()
+                    elif t.startswith("- "): bn = t[2:].strip()
                     i += 1
-                slides.append(SlideOutline(
-                    slide_number=slide_num,
-                    title=slide_title,
-                    w=w,
-                    p=p,
-                    s=s,
-                    page_type="content",
-                    section_name=current_section,
-                ))
+                slides.append(SlideOutline(0, bt, "", bp, [], "cover", notes=bn))
+                continue
+            elif line.startswith("## 目录") or line.startswith("## 结尾页"):
+                # TOC / End
+                pt = "toc" if "目录" in line else "end"
+                i += 1
+                st = title
+                sn = ""
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("## "):
+                    t = lines[i].strip()
+                    if t.startswith("- "): sn = t[2:].strip()
+                    i += 1
+                slides.append(SlideOutline(0, st, "", "", [], pt, notes=sn))
+                continue
+            elif line.startswith("## ") and not line.startswith("## 封") and not line.startswith("## 目") and not line.startswith("## 结"):
+                current_section = line[3:].strip()
+                sections.append(current_section)
+            elif line.startswith("### 转场页"):
+                st = line.replace("### 转场页：", "").replace("### 转场页", "").strip()
+                i += 1
+                body = []
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("### ") and not lines[i].strip().startswith("## "):
+                    t = lines[i].strip()
+                    if not t.startswith("---"): body.append(t)
+                    i += 1
+                slides.append(SlideOutline(len(slides)+1, st, current_section, "", body, "transition", current_section))
+                continue
+            elif line.startswith("### 强调页"):
+                st = line.replace("### 强调页：", "").replace("### 强调页", "").strip()
+                slides.append(SlideOutline(len(slides)+1, st, current_section, "", [], "emphasis", current_section))
+            elif line.startswith("### "):
+                st = line[4:].strip()
+                i += 1
+                body = []; core = ""
+                while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("### ") and not lines[i].strip().startswith("## "):
+                    t = lines[i].strip()
+                    if t.startswith("- "): body.append(t[2:].strip())
+                    elif t and not t.startswith("---") and not core: core = t
+                    elif t and not t.startswith("---"): body.append(t)
+                    i += 1
+                slides.append(SlideOutline(len(slides)+1, st, current_section, core, body, "content", current_section))
                 continue
             i += 1
 
-        sections = list(dict.fromkeys(s.section_name for s in slides if s.section_name))
-
-        return ContentOutlineResult(
-            presentation_title=title,
-            sections=sections,
-            slides=slides,
-        )
+        sections = list(dict.fromkeys(s for s in sections if s))
+        return ContentOutlineResult(title, slides, sections)
 
 
 __all__ = [
