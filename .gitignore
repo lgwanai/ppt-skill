@@ -22,3 +22,5 @@ build/
 specs/
 outlines/
 config.txt
+*.pptx
+tests/*.pptx
