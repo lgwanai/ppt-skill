@@ -1,330 +1,227 @@
 #!/usr/bin/env python3
-"""
-Generate PPTX from markdown outline following prompt-ppt-layout.md rules.
-
-Layout rules applied:
-  - Cover: main color bg, big title 28-40pt bold, subtitle 14-18pt, info area bottom
-  - TOC: image area left + item list right
-  - Transition: big chapter number (48-72pt), chapter name (24-32pt bold)
-  - Content: W nav (8-10pt light), P point (18-24pt bold colored), S body (11-14pt #333)
-  - Emphasis: full-color bg, large white text
-  - Diagrams: uses templates/diagram/ SVGs where content matches patterns
-
-Usage:
-  python3 scripts/generate_pptx_from_md.py \\
-    --spec specs/business-trip \\
-    --outline outlines/agent_course.md \\
-    -o output.pptx
-"""
-
-import argparse, re, os, json
+"""Generate PPTX from markdown outline, following spec data."""
+import argparse, re, os, json, sys
 from pathlib import Path
 from pptx import Presentation
-from pptx.util import Pt, Emu, Inches
+from pptx.util import Pt, Emu
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import PP_ALIGN
 
 SW, SH = 12192000, 6858000
-
-# Color palette from spec
-C_ACCENT = RGBColor(0x44, 0x72, 0xC4)   # accent1
-C_DARK = RGBColor(0x33, 0x33, 0x33)      # body text
-C_LIGHT = RGBColor(0x99, 0x99, 0x99)     # light gray
-C_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-C_BLACK = RGBColor(0x00, 0x00, 0x00)
-C_BG = RGBColor(0xFA, 0xFA, 0xFA)        # page bg
-
-# Layout constants from prompt-ppt-layout
-MARGIN_L = Emu(int(SW * 0.10))   # 10% left margin
-MARGIN_R = Emu(int(SW * 0.10))   # 10% right margin
-CONTENT_W = Emu(SW) - MARGIN_L - MARGIN_R
-MARGIN_T = Emu(int(SH * 0.06))   # 6% top
-MARGIN_B = Emu(int(SH * 0.06))
-
-W_SIZE = 9                         # nav bar font size
-P_SIZE = 20                        # core point font size
-S_SIZE = 13                        # body text font size
-NOTES_SIZE = 8                     # footnotes
-
-def nx(x): return int(x * SW)
-def ny(y): return int(y * SH)
-def nw(w): return int(w * SW)
-def nh(h): return int(h * SH)
-
 FONT = '微软雅黑'
 
-def add_run(para, text, size, bold=False, color=C_DARK, font=FONT):
-    """Add a text run with consistent formatting."""
-    run = para.add_run()
-    run.text = text
-    run.font.name = font
-    run.font.size = Pt(size)
-    run.font.bold = bold
-    if color:
-        run.font.color.rgb = color
-    return run
+def nx(v): return int(v * SW)
+def ny(v): return int(v * SH)
+def nw(v): return int(v * SW)
+def nh(v): return int(v * SH)
 
-def add_textbox(slide, x, y, w, h, lines, size=S_SIZE, bold=False, color=C_DARK,
-                align=PP_ALIGN.LEFT, line_sp=1.5, font=FONT):
-    """Add text box with multiple lines."""
-    box = slide.shapes.add_textbox(x, y, w, h)
+# ── Spec ────────────────────────────────────────────────────────────────
+
+def load_spec(spec_dir):
+    d = Path(spec_dir)
+    spec = json.load(open(d / 'spec.json'))
+    layouts = {}
+    for l in spec['layouts']:
+        key = f"{l['page_type']}_{l.get('layout_sub_type','full')}"
+        layouts[key] = json.load(open(d / l['file']))
+    return spec['palette'], spec['typography'], layouts
+
+def first_elem_by_role(elements, roles):
+    for r in roles:
+        for e in elements:
+            if e.get('role') == r or (not e.get('role') and r == 'title'):
+                return e
+    return elements[0] if elements else {}
+
+def elem_val(elem, field, default):
+    ts = elem.get('text_style', {}) or {}
+    if field == 'font':      return ts.get('font_family', FONT) or FONT
+    if field == 'size':      return ts.get('font_size_pt', default) or default
+    if field == 'weight':    return ts.get('font_weight', 'normal') or 'normal'
+    if field == 'color':     return ts.get('font_color', f'#{default}') if isinstance(default, int) else ts.get('font_color', default) or default
+    if field in ('x','y','w','h'):
+        return elem.get('position', {}).get(field, default)
+    return default
+
+def _hex(h):
+    h = h.lstrip('#')
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+# ── PPTX ─────────────────────────────────────────────────────────────────
+
+def textbox(slide, x_emu, y_emu, w_emu, h_emu, text, size, bold=False, color=None, align=PP_ALIGN.LEFT, ls=1.5):
+    box = slide.shapes.add_textbox(x_emu, y_emu, w_emu, h_emu)
     tf = box.text_frame; tf.word_wrap = True
-    para = tf.paragraphs[0]
-    para.alignment = align
-    para.line_spacing = Pt(size * line_sp)
-    add_run(para, lines[0], size, bold, color, font)
-    for line in lines[1:]:
-        para = tf.add_paragraph()
-        para.alignment = align
-        para.line_spacing = Pt(size * line_sp)
-        add_run(para, line, size, False, color, font)
+    p = tf.paragraphs[0]; p.alignment = align; p.line_spacing = Pt(size * ls)
+    r = p.add_run(); r.text = text; r.font.name = FONT; r.font.size = Pt(size)
+    r.font.bold = bold
+    if color: r.font.color.rgb = color
     return box
 
-def add_para_box(slide, x, y, w, h, text, size=S_SIZE, bold=False, color=C_DARK,
-                 align=PP_ALIGN.LEFT, line_sp=1.5, font=FONT):
-    """Add a single-paragraph text box (returns height used)."""
-    lines = text.split('\n')
-    # Estimate required height
-    chars_per_line = int(w / (Pt(size) * 1.6))
-    total_lines = sum(max(1, -(-len(l) // max(1, chars_per_line))) for l in lines if l.strip())
-    required_h = max(Emu(300000), Emu(int(total_lines * size * line_sp * 14000)))
-    h = max(h, required_h)
-    add_textbox(slide, x, y, w, h, lines, size, bold, color, align, line_sp, font)
-    return h
+def auto_textbox(slide, x, y, w, lines, size, bold=False, color=None, align=PP_ALIGN.LEFT, ls=1.5):
+    """Auto-height text box for multiple lines."""
+    num_lines = len(lines)
+    h = max(Emu(300000), Emu(int(num_lines * size * ls * 18000)))
+    text = '\n'.join(lines)
+    return textbox(slide, Emu(int(x)), Emu(int(y)), Emu(int(w)), h, text, size, bold, color, align, ls)
 
-def add_rect(slide, x, y, w, h, fill, line=False):
-    shape = slide.shapes.add_shape(1, x, y, w, h)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill
-    if not line:
-        shape.line.fill.background()
-    return shape
+# ── Outline parser ───────────────────────────────────────────────────────
 
-def add_line(slide, x1, y1, x2, y2, color=C_ACCENT, width=Emu(13000)):
-    connector = slide.shapes.add_connector(1, x1, y1, x2, y2)  # straight
-    connector.line.color.rgb = color
-    connector.line.width = width
-
-def add_img(slide, path, x, y, w, h):
-    if os.path.exists(path):
-        return slide.shapes.add_picture(path, x, y, w, h)
-
-def bg_rect(slide, color=C_WHITE):
-    add_rect(slide, Emu(0), Emu(0), Emu(SW), Emu(SH), color)
-
-def cover_bg(slide):
-    add_img(slide, '/tmp/ppt_assets/3_自定义版式_0.png', Emu(0), Emu(0), Emu(SW), Emu(SH))
-    add_img(slide, '/tmp/ppt_assets/3_自定义版式_2.png', nx(0.762), ny(0.0558), nw(0.1884), nh(0.1032))
-
-def content_bg(slide):
-    add_img(slide, '/tmp/ppt_assets/统一模板_2.png', Emu(0), ny(0.2333), nw(0.7691), nh(0.7691))
-    add_img(slide, '/tmp/ppt_assets/统一模板_1.png', nx(0.8316), ny(0.0233), nw(0.1405), nh(0.0770))
-
-# ── Parse markdown ─────────────────────────────────────────────────────
-
-def parse_markdown(path):
-    slides = []
+def parse_outline(path):
     raw = open(path, encoding='utf-8').read()
-    current_chapter = ""; current_title = ""; current_body = []
-    chapter_num = 0
+    slides = []
+    chapter = ""; ch_num = 0; title = ""; body = []
+    lines = raw.split('\n')
 
-    for line in raw.split('\n'):
+    for i, line in enumerate(lines):
         if line.startswith('## ') and not line.startswith('### '):
-            if current_title:
-                slides.append(_make_slide(current_title, current_body, current_chapter, chapter_num))
-                current_body = []
+            # Save previous
+            if title:
+                slides.append({'type': _type(title), 'title': title, 'body': body, 'chapter': chapter, 'ch_num': ch_num})
+                body = []
             h = line.lstrip('# ').strip()
             if h == '封面':
-                slides.append({"type": "cover", "title": "封面", "body": [], "chapter_num": 0})
+                # Look ahead for title/subtitle
+                for j in range(i+1, min(i+10, len(lines))):
+                    t = lines[j].strip()
+                    if t.startswith('- 主标题：'): title = t.replace('- 主标题：', '').strip()
+                    elif t.startswith('- 副标题：'): body.append(t.replace('- 副标题：', '').strip())
+                    elif t.startswith('- '): body.append(t[2:])
+                slides.append({'type': 'cover', 'title': title, 'body': body, 'chapter': '', 'ch_num': 0})
+                title = ""; body = []
             elif h == '目录':
-                slides.append({"type": "toc", "title": "目录", "body": [], "chapter_num": 0})
+                slides.append({'type': 'toc', 'title': '目录', 'body': [], 'chapter': '', 'ch_num': 0})
             elif h == '结尾页':
-                slides.append({"type": "end", "title": "结尾页", "body": [], "chapter_num": 0})
+                for j in range(i+1, min(i+10, len(lines))):
+                    t = lines[j].strip()
+                    if t.startswith('- '): body.append(t[2:])
+                slides.append({'type': 'end', 'title': '结尾页', 'body': body, 'chapter': '', 'ch_num': 0})
+                body = []
             else:
-                chapter_num += 1
-                current_chapter = re.sub(r'^[第][一二三四五六七八九十]+章[：:]', '', h).strip()
-            current_title = ""
+                ch_num += 1
+                chapter = re.sub(r'^[第][一二三四五六七八九十]+章[：:]', '', h).strip()
+            title = ""
         elif line.startswith('### '):
-            if current_title:
-                slides.append(_make_slide(current_title, current_body, current_chapter, chapter_num))
-                current_body = []
-            current_title = line.lstrip('# ').strip()
-        elif line.strip() and not line.startswith('---') and not line.startswith('|') and not line.startswith('```'):
+            if title:
+                slides.append({'type': _type(title), 'title': title, 'body': body, 'chapter': chapter, 'ch_num': ch_num})
+                body = []
+            title = line.lstrip('# ').strip()
+        elif line.strip() and not line.startswith(('---', '|', '```')):
             t = line.strip().lstrip('- *').strip()
-            if t and len(t) > 3:
-                current_body.append(t)
-    if current_title:
-        slides.append(_make_slide(current_title, current_body, current_chapter, chapter_num))
+            if t and len(t) > 3: body.append(t)
+    if title:
+        slides.append({'type': _type(title), 'title': title, 'body': body, 'chapter': chapter, 'ch_num': ch_num})
     return slides
 
-def _make_slide(title, body, chapter, ch_num):
-    st = "content"
-    if title.startswith("转场页"):
-        st = "transition"
-        title = title.replace("转场页：", "").replace("转场页", "").strip()
-    return {"type": st, "title": title, "body": body, "chapter": chapter, "chapter_num": ch_num}
+def _type(title):
+    if title.startswith('转场页'): return 'transition'
+    return 'content'
 
-# ── Generate slides ──────────────────────────────────────────────────────
-
-def gen_cover(prs, slide_data):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    cover_bg(s)
-
-    # Title area — big bold on the main color zone
-    title = slide_data.get("title", "")
-    add_para_box(s, nx(0.1137), ny(0.15), nw(0.7882), nh(0.35),
-                 title, size=36, bold=True, color=C_ACCENT, align=PP_ALIGN.CENTER, line_sp=1.5)
-
-    # Subtitle from body (first non-empty line after title)
-    subtitle = next((b for b in slide_data.get("body", []) if len(b) > 5), "联通支付AI办公效能提升系列课程")
-    add_para_box(s, nx(0.1137), ny(0.55), nw(0.7882), nh(0.12),
-                 subtitle, size=16, color=C_LIGHT, align=PP_ALIGN.CENTER, line_sp=1.3)
-
-    # Bottom info bar
-    info_y = ny(0.78)
-    add_rect(s, Emu(0), info_y, Emu(SW), nh(0.22), C_WHITE)
-    info_text = " · ".join([b for b in slide_data.get("body", [])[1:3] if len(b) > 5]) or "第四课 · 2026年"
-    add_para_box(s, MARGIN_L, info_y + Emu(20000), CONTENT_W, nh(0.08),
-                 info_text, size=12, color=C_LIGHT, align=PP_ALIGN.CENTER)
-
-def gen_toc(prs, slide_data, toc_items):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    content_bg(s)
-    # Left image area (35% wide) + right item list
-    # Since we don't have a dedicated TOC image, use color block
-    add_rect(s, MARGIN_L, ny(0.10), Emu(int(SW * 0.35)), nh(0.80), C_ACCENT)
-
-    # Right side: TOC items
-    items_x = MARGIN_L + Emu(int(SW * 0.38))
-    add_para_box(s, items_x + Emu(20000), ny(0.12), CONTENT_W - Emu(int(SW * 0.38)), nh(0.06),
-                 "目录", size=28, bold=True, color=C_ACCENT)
-    for i, item in enumerate(toc_items[:8]):
-        y = ny(0.22) + i * Emu(500000)
-        # Chapter number
-        add_para_box(s, items_x, y, Emu(400000), Emu(400000),
-                     f"0{i+1}", size=36, bold=True, color=C_ACCENT, align=PP_ALIGN.CENTER)
-        # Chapter name
-        add_para_box(s, items_x + Emu(500000), y + Emu(50000), Emu(SW) - items_x - Emu(600000), Emu(400000),
-                     item, size=16, color=C_DARK)
-
-def gen_transition(prs, slide_data):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    content_bg(s)
-
-    ch_num = slide_data.get("chapter_num", 1)
-    title = slide_data.get("title", "")
-
-    # Big chapter number
-    add_para_box(s, MARGIN_L, ny(0.15), Emu(1500000), nh(0.25),
-                 f"{ch_num:02d}", size=64, bold=True, color=C_ACCENT, align=PP_ALIGN.LEFT)
-    # Chapter name
-    add_para_box(s, MARGIN_L, ny(0.45), CONTENT_W, nh(0.20),
-                 title, size=28, bold=True, color=C_ACCENT, line_sp=1.3)
-
-    # Decorative line
-    add_line(s, MARGIN_L, ny(0.68), MARGIN_L + Emu(int(SW * 0.3)), ny(0.68), C_ACCENT, Emu(20000))
-
-    # Body content
-    if slide_data.get("body"):
-        body_text = "\n".join(slide_data["body"][:3])
-        add_para_box(s, MARGIN_L, ny(0.72), CONTENT_W, nh(0.20),
-                     body_text, size=14, color=C_DARK, line_sp=1.5)
-
-def gen_content(prs, slide_data):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    content_bg(s)
-    body = slide_data.get("body", [])
-    title = slide_data.get("title", "")
-    chapter = slide_data.get("chapter", "")
-
-    # W: Navigation bar (top, small, light)
-    if chapter:
-        add_para_box(s, MARGIN_L, MARGIN_T - Emu(100000), CONTENT_W, Emu(200000),
-                     chapter, size=W_SIZE, color=C_LIGHT, font=FONT)
-
-    # P: Core point (big, bold, accent color)
-    y = MARGIN_T + Emu(200000)
-    # Find the strongest sentence as P
-    p_text = title
-    if body:
-        # Use first short sentence that looks like a conclusion
-        for b in body:
-            if 10 < len(b) < 80 and ('**' in b or '。' not in b):
-                p_text = b.strip('* ')
-                break
-
-    h_used = add_para_box(s, MARGIN_L, y, CONTENT_W, nh(0.15),
-                          p_text, size=P_SIZE, bold=True, color=C_ACCENT, line_sp=1.3)
-    y += h_used + Emu(100000)
-
-    # Separator line
-    add_line(s, MARGIN_L, y, MARGIN_L + Emu(int(SW * 0.15)), y, C_ACCENT, Emu(13000))
-    y += Emu(80000)
-
-    # S: Supporting content
-    y_remaining = Emu(SH) - MARGIN_B - y
-    # Calculate how many lines we can fit
-    lines_per_item = [len(item) for item in body if item != p_text]
-    # Render body items
-    for i, item in enumerate(body):
-        if item == p_text or len(item) < 3:
-            continue
-        if y > Emu(SH) - MARGIN_B - Emu(300000):
-            break
-        # Check if this looks like a sub-header (bold, short)
-        is_header = len(item) < 40 and ('**' in item or item.endswith('：') or item.endswith(':'))
-        sz = S_SIZE + 1 if is_header else S_SIZE
-        bold = is_header
-        color = C_ACCENT if is_header else C_DARK
-        h = add_para_box(s, MARGIN_L, y, CONTENT_W, Emu(300000),
-                         item.lstrip('* '), size=sz, bold=bold, color=color, line_sp=1.5)
-        y += h + Emu(40000)
-
-def gen_end(prs, slide_data):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    # Emphasis style: full color background
-    add_rect(s, Emu(0), Emu(0), Emu(SW), Emu(SH), C_ACCENT)
-
-    add_para_box(s, nx(0.10), ny(0.30), nw(0.80), nh(0.20),
-                 "感谢参与，下次见！", size=42, bold=True, color=C_WHITE, align=PP_ALIGN.CENTER)
-    add_para_box(s, nx(0.10), ny(0.50), nw(0.80), nh(0.10),
-                 "第四课：图片素材生成、PPT 生成与 Agent 初探  结束", size=18, color=C_WHITE, align=PP_ALIGN.CENTER)
-    if slide_data.get("body"):
-        add_para_box(s, nx(0.15), ny(0.65), nw(0.70), nh(0.15),
-                     "\n".join(slide_data["body"][:3]), size=13, color=C_WHITE, align=PP_ALIGN.CENTER, line_sp=1.5)
+# ── Main ──────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--spec', required=True)
-    parser.add_argument('--outline', required=True)
+    parser.add_argument('--spec', required=True); parser.add_argument('--outline', required=True)
     parser.add_argument('-o', '--output', default='output.pptx')
     args = parser.parse_args()
 
-    slides = parse_markdown(args.outline)
-    print(f"Parsed {len(slides)} slides")
+    palette, typo, layouts = load_spec(args.spec)
+    slides = parse_outline(args.outline)
+    print(f"Outline: {len(slides)} slides | Spec: {len(layouts)} layouts")
 
     prs = Presentation(); prs.slide_width = SW; prs.slide_height = SH
 
-    # Extract TOC items from first TOC slide
-    toc_items = []
-    for s in slides:
-        if s["type"] == "toc":
-            if s.get("body"):
-                toc_items = [b for b in s["body"] if len(b) > 1]
-            break
-
-    gen_map = {
-        "cover": gen_cover, "toc": lambda p, d: gen_toc(p, d, toc_items),
-        "transition": gen_transition, "content": gen_content, "end": gen_end
-    }
+    # Get cover and content layout elements from spec
+    cover_elems, content_elems = [], []
+    for k, v in layouts.items():
+        if 'cover' in k: cover_elems = v.get('elements', [])
+        elif 'content' in k and not content_elems: content_elems = v.get('elements', [])
 
     for sd in slides:
-        gen = gen_map.get(sd["type"])
-        if gen:
-            gen(prs, sd)
+        st = sd['type']
+        elems = cover_elems if st in ('cover', 'end') else content_elems
+        s = prs.slides.add_slide(prs.slide_layouts[6])
+
+        if st in ('cover', 'end'):
+            # Use cover layout element positions
+            title_e = first_elem_by_role(elems, ['title'])
+            subtitle_e = first_elem_by_role(elems, ['subtitle'])
+
+            tx = nx(elem_val(title_e, 'x', 0.114))
+            ty = ny(elem_val(title_e, 'y', 0.098))
+            tw = nw(elem_val(title_e, 'w', 0.788))
+            tsz = elem_val(title_e, 'size', 40)
+            tcol_rgb = RGBColor(*_hex(elem_val(title_e, 'color', '4472C4')))
+
+            title_text = sd['title'] if st == 'cover' else "感谢参与，下次见！"
+            if st == 'end':
+                tx, ty, tw, tsz = nx(0.10), ny(0.30), nw(0.80), 42
+
+            auto_textbox(s, tx, ty, tw,
+                        title_text.split('\n') if '\n' in title_text else [title_text],
+                        tsz, True, tcol_rgb, PP_ALIGN.CENTER)
+
+            if st == 'cover' and sd.get('body'):
+                sx = nx(elem_val(subtitle_e, 'x', 0.077))
+                sy = ny(elem_val(subtitle_e, 'y', 0.625))
+                sw = nw(elem_val(subtitle_e, 'w', 0.846))
+                ssz = elem_val(subtitle_e, 'size', 20)
+                scol = RGBColor(*_hex(elem_val(subtitle_e, 'color', '4472C4')))
+                auto_textbox(s, sx, sy, sw, sd['body'][:1], ssz, True, scol, PP_ALIGN.CENTER)
+            elif st == 'end' and sd.get('body'):
+                auto_textbox(s, nx(0.15), ny(0.50), nw(0.70), sd['body'][:3],
+                            14, False, RGBColor(0xFF,0xFF,0xFF), PP_ALIGN.CENTER, 1.5)
+            continue
+
+        # Content/Transition pages
+        title_e = first_elem_by_role(elems, ['title'])
+        body_e = first_elem_by_role(elems, ['body'])
+
+        tx = nx(elem_val(title_e, 'x', 0.021))
+        ty = ny(elem_val(title_e, 'y', 0.049))
+        tw = nw(elem_val(title_e, 'w', 0.95))
+        tsz = elem_val(title_e, 'size', 24)
+        tcol = RGBColor(*_hex(elem_val(title_e, 'color', '0070C0')))
+
+        if st == 'transition':
+            tsz = 28; ty = ny(0.15)
+            # Chapter number
+            auto_textbox(s, nx(0.10), ny(0.08), nw(0.15),
+                        [f"{sd['ch_num']:02d}"], 64, True, tcol, PP_ALIGN.LEFT)
+
+        auto_textbox(s, tx, ty, tw,
+                    [sd['title']],
+                    tsz, True, tcol, PP_ALIGN.LEFT if st != 'cover' else PP_ALIGN.CENTER)
+
+        # Body (cap at 4 items for space)
+        bx = nx(elem_val(body_e, 'x', 0.04))
+        by = ny(elem_val(body_e, 'y', 0.12))
+        bw = nw(elem_val(body_e, 'w', 0.92))
+        bsz = elem_val(body_e, 'size', 14)
+        bcol_str = elem_val(body_e, 'color', '333333')
+        bcol = RGBColor(*_hex(bcol_str))
+
+        by_emu = int(by)
+        max_y = int(SH * 0.95)
+        for item in sd.get('body', [])[:4]:
+            if by_emu > max_y: break
+            auto_textbox(s, int(bx), by_emu, int(bw), [item[:120]], bsz, False, bcol, PP_ALIGN.LEFT, 1.5)
+            chars = len(item)
+            chars_per_line = max(1, bw / (bsz * 500))
+            lines = max(1, int(chars / chars_per_line) + 1)
+            by_emu += int(lines * bsz * 1.6 * 18000)
 
     prs.save(args.output)
     print(f"Saved: {args.output} ({len(prs.slides)} slides)")
+
+    # Run validator
+    from ppt_skill.slide_validator import validate_presentation
+    prs2 = Presentation(args.output)
+    issues = validate_presentation(prs2)
+    b = sum(1 for vs in issues.values() for v in vs if v.severity == 'BLOCKER')
+    w = sum(1 for vs in issues.values() for v in vs if v.severity == 'WARNING')
+    print(f"Validator: {b} blockers, {w} warnings")
+    sys.exit(1 if b > 0 else 0)
 
 if __name__ == '__main__':
     main()
