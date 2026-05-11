@@ -8,14 +8,16 @@ Applies professional layout design to slides:
 
 Usage:
     designer = LayoutDesigner()
-    styled_slide = designer.design(slide_content, spec_page)
+    result = designer.design(slide_content, spec_page, llm_callback)
 """
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass
@@ -97,10 +99,11 @@ class LayoutResult:
     params: LayoutParams | None = None
     issues: list[LayoutIssue] = field(default_factory=list)
     fixes_applied: list[str] = field(default_factory=list)
+    llm_feedback: list[str] = field(default_factory=list)
 
 
 class LayoutDesigner:
-    """Apply professional layout design using agent loop."""
+    """Apply professional layout design using LLM-driven agent loop."""
 
     def __init__(self):
         self.layout_prompt = self._load_layout_prompt()
@@ -113,72 +116,225 @@ class LayoutDesigner:
             return prompt_path.read_text(encoding="utf-8")
         return ""
 
+    def _build_layout_prompt(
+        self,
+        slide_content: dict,
+        spec_page: dict,
+        previous_fixes: list[str] | None = None,
+    ) -> str:
+        """Build the LLM prompt for layout design using prompt-ppt-layout.md."""
+        w = slide_content.get("w", "")
+        p = slide_content.get("p", "")
+        s = slide_content.get("s", [])
+
+        page_type = spec_page.get("page_type", "content")
+        colors = spec_page.get("colors", {})
+        typography = spec_page.get("typography", {})
+
+        fix_section = ""
+        if previous_fixes:
+            fix_section = (
+                "\n## Previous Issues to Fix\n"
+                + "\n".join(f"  - {fix}" for fix in previous_fixes)
+                + "\n\nFix ALL of the above issues in your response.\n"
+            )
+
+        bg_color = colors.get("lt1") or colors.get("background1") or colors.get("background", "#FFFFFF")
+        primary_color_display = colors.get("accent1") or colors.get("primary", "#0070C0")
+        text_color_display = colors.get("dk1") or colors.get("text1") or colors.get("body", "#333333")
+        heading_font = typography.get("heading_family", "Arial")
+        body_font = typography.get("body_family", "Arial")
+
+        return f"""You are a professional slide layout designer. Apply the following layout principles to redesign this slide.
+
+## Layout Design Principles
+{self.layout_prompt}
+
+## Slide Content
+- **W (What/Navigation)**: {w}
+- **P (Point/核心观点)**: {p}
+- **S (Support/支撑论据)**: {chr(10).join(f'  • {b}' for b in s) if s else 'N/A'}
+- **Page Type**: {page_type}
+
+## Design Spec
+- Background color: {bg_color}
+- Primary color: {primary_color_display}
+- Text color: {text_color_display}
+- Heading font: {heading_font}
+- Body font: {body_font}
+
+## Requirements
+1. Font family MUST be sans-serif (e.g. Arial, Helvetica)
+2. W (navigation) should be small text (8-12pt) at top
+3. P (point) should be large (22-28pt), bold, prominent
+4. S (support) should be medium (11-16pt), regular weight, below P
+5. Line spacing 1.5x
+6. Single primary color for accents; dark text (#333-#444) for body
+7. Margins: 8-12% on all sides
+8. Suggest a Bootstrap icon name (from bi-* set) that matches the content{fix_section}
+
+## Output Format
+Return ONLY valid JSON with these keys:
+{{
+  "font_family": "Arial",
+  "w_font_size": 10.0,
+  "p_font_size": 24.0,
+  "s_font_size": 12.0,
+  "p_font_weight": "bold",
+  "s_font_weight": "regular",
+  "line_spacing": 1.5,
+  "primary_color": "#0070C0",
+  "text_color": "#333333",
+  "background_color": "#FFFFFF",
+  "left_margin": 0.10,
+  "right_margin": 0.10,
+  "top_margin": 0.08,
+  "bottom_margin": 0.08,
+  "w_position": "top",
+  "p_position": "upper",
+  "s_position": "lower",
+  "icon_name": "bi-graph-up",
+  "icon_position": "right"
+}}
+"""
+
     def design(
         self,
         slide_content: dict,
         spec_page: dict,
-        generate_callback: Any = None,
+        generate_callback: Callable[[str], str] | None = None,
     ) -> LayoutResult:
-        """Design layout for a slide using agent loop.
+        """Design layout for a slide using LLM-driven agent loop.
+
+        Uses the LLM (via generate_callback) with prompt-ppt-layout.md
+        to generate optimal layout parameters, then validates and iterates.
 
         Args:
             slide_content: Slide data with w, p, s fields
             spec_page: Design spec page
-            generate_callback: Function to generate layout (LLM-backed)
+            generate_callback: LLM function (prompt_str) -> response text.
+                               If None, falls back to rule-based params.
 
         Returns:
             LayoutResult with layout params and validation
         """
         result = LayoutResult()
-        params = self._initial_params(slide_content, spec_page)
+
+        if generate_callback is None:
+            return self._fallback_rule_based(slide_content, spec_page, result)
+
+        previous_fixes: list[str] | None = None
 
         for iteration in range(1, self.max_iterations + 1):
             result.iterations = iteration
+
+            prompt = self._build_layout_prompt(slide_content, spec_page, previous_fixes)
+
+            try:
+                response = generate_callback(prompt)
+                params_data = self._parse_llm_response(response)
+                params = LayoutParams.from_dict(params_data) if params_data else self._initial_params(slide_content, spec_page)
+            except Exception:
+                params = self._initial_params(slide_content, spec_page)
+
             result.params = params
 
-            # Validate layout
             issues = self._validate_layout(params, slide_content)
             result.issues = issues
 
-            # Check for errors
+            errors = [i for i in issues if i.severity == "error"]
+            warnings = [i for i in issues if i.severity == "warning"]
+
+            if not errors:
+                result.passed = True
+                if warnings:
+                    result.fixes_applied.extend(
+                        self._generate_fixes(warnings)
+                    )
+                return result
+
+            fixes = self._generate_fixes(errors)
+            result.fixes_applied.extend(fixes)
+            result.llm_feedback.extend(fixes)
+            previous_fixes = fixes
+
+        return result
+
+    def _parse_llm_response(self, response: str) -> dict | None:
+        """Parse JSON from LLM response, handling markdown fences."""
+        if not response:
+            return None
+
+        json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                return None
+        return None
+
+    def _fallback_rule_based(
+        self,
+        slide_content: dict,
+        spec_page: dict,
+        result: LayoutResult,
+    ) -> LayoutResult:
+        """Fallback: generate layout params from spec data (no LLM)."""
+        params = self._initial_params(slide_content, spec_page)
+        result.params = params
+
+        for iteration in range(1, self.max_iterations + 1):
+            result.iterations = iteration
+
+            issues = self._validate_layout(params, slide_content)
+            result.issues = issues
+
             errors = [i for i in issues if i.severity == "error"]
             if not errors:
                 result.passed = True
                 return result
 
-            # Apply fixes
             fixes = self._generate_fixes(issues)
             result.fixes_applied.extend(fixes)
             params = self._apply_fixes(params, fixes)
+            result.params = params
 
         return result
 
     def _initial_params(self, slide_content: dict, spec_page: dict) -> LayoutParams:
         """Generate initial layout params from content and spec."""
-        # Extract from spec
         colors = spec_page.get("colors", {})
         typography = spec_page.get("typography", {})
 
-        primary_color = colors.get("primary", "#0070C0")
+        # Handle both VL JSON palette (accent1, dk1, lt1) and legacy YAML formats
+        primary_color = (
+            colors.get("accent1") or colors.get("primary") or "#0070C0"
+        )
         if isinstance(primary_color, list):
             primary_color = primary_color[0] if primary_color else "#0070C0"
 
+        text_color = (
+            colors.get("dk1") or colors.get("text1") or colors.get("body") or "#000000"
+        )
+        background_color = (
+            colors.get("lt1") or colors.get("background1") or colors.get("background") or "#FFFFFF"
+        )
+
         font_family = typography.get("heading_family", "Arial")
         if not font_family or font_family in ("宋体", "仿宋", "楷体"):
-            font_family = "Arial"  # Force sans-serif
+            font_family = "Arial"
 
         return LayoutParams(
             font_family=font_family,
             primary_color=primary_color,
-            text_color=colors.get("body", "#333333"),
-            background_color=colors.get("background", "#FFFFFF"),
+            text_color=text_color,
+            background_color=background_color,
         )
 
     def _validate_layout(self, params: LayoutParams, content: dict) -> list[LayoutIssue]:
         """Validate layout against design rules."""
         issues: list[LayoutIssue] = []
 
-        # Rule 1: Sans-serif only
         if params.font_family in ("宋体", "仿宋", "楷体", "SimSun", "FangSong", "KaiTi"):
             issues.append(LayoutIssue(
                 rule="sans_serif",
@@ -186,7 +342,6 @@ class LayoutDesigner:
                 severity="error",
             ))
 
-        # Rule 2: P larger than S
         if params.p_font_size <= params.s_font_size:
             issues.append(LayoutIssue(
                 rule="hierarchy",
@@ -194,7 +349,6 @@ class LayoutDesigner:
                 severity="error",
             ))
 
-        # Rule 3: P should be bold
         if params.p_font_weight != "bold":
             issues.append(LayoutIssue(
                 rule="bold_point",
@@ -202,7 +356,6 @@ class LayoutDesigner:
                 severity="warning",
             ))
 
-        # Rule 4: Line spacing should be 1.5
         if params.line_spacing < 1.3 or params.line_spacing > 1.7:
             issues.append(LayoutIssue(
                 rule="line_spacing",
@@ -210,7 +363,6 @@ class LayoutDesigner:
                 severity="warning",
             ))
 
-        # Rule 5: Margins should be adequate
         if params.left_margin < 0.08 or params.right_margin < 0.08:
             issues.append(LayoutIssue(
                 rule="margins",
@@ -218,7 +370,6 @@ class LayoutDesigner:
                 severity="warning",
             ))
 
-        # Rule 6: Text should be dark
         if params.text_color.upper() not in ("#333333", "#333", "#444444", "#444", "#000000", "#000"):
             issues.append(LayoutIssue(
                 rule="text_color",
@@ -281,7 +432,6 @@ class LayoutDesigner:
             " ".join(content.get("s", [])),
         ]).lower()
 
-        # Keywords to icons mapping
         icon_keywords = {
             "bi-graph-up": ["data", "chart", "growth", "increase", "revenue", "sales"],
             "bi-people": ["team", "people", "staff", "employee", "customer"],

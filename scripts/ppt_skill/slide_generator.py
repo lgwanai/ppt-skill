@@ -90,6 +90,10 @@ def _build_generation_prompt(
     layout_description = spec_page.get("layout_description", "")
     colors = spec_page.get("colors", {})
     typography = spec_page.get("typography", {})
+    assets_dir = spec_page.get("assets_dir", "")
+    design_patterns = spec_page.get("design_patterns", [])
+    element_groups = spec_page.get("element_groups", [])
+    elements = spec_page.get("elements", [])
 
     color_guide = "\n".join(
         f"    {k}: {v}" for k, v in colors.items() if v
@@ -97,29 +101,92 @@ def _build_generation_prompt(
 
     font_family = typography.get("heading_family", typography.get("body_family", "Arial"))
 
-    prompt = f"""Generate an SVG slide with the following content and STRICT style constraints.
+    # ── Build element layout guide from spec ──
+    element_lines = []
+    for el in elements[:15]:  # Limit to first 15 for prompt length
+        eid = el.get("id", 0)
+        etype = el.get("element_type", "?")
+        erole = el.get("semantic_role", "")
+        pos = el.get("position", {})
+        text_preview = el.get("text", "")[:60]
 
-## Content
+        line = f"  Element #{eid}: type={etype}, role={erole}"
+        if pos:
+            line += f", pos=({pos.get('x',0):.2f},{pos.get('y',0):.2f}) size=({pos.get('w',0):.2f}x{pos.get('h',0):.2f})"
+        if text_preview:
+            line += f", text='{text_preview}'"
+        if el.get("fill_color"):
+            line += f", fill={el['fill_color']}"
+        if el.get("text_style"):
+            ts = el.get("text_style", {})
+            line += f", font={ts.get('font_family','')} {ts.get('font_size_pt','')}pt"
+        if el.get("saved_asset"):
+            line += f", img={el['saved_asset']}"
+        if el.get("children"):
+            line += f", children={len(el['children'])}"
+        element_lines.append(line)
+
+    # Table info
+    for el in elements:
+        table_data = el.get("table")
+        if table_data:
+            element_lines.append(f"  TABLE: {table_data.get('rows',0)} rows x {table_data.get('cols',0)} columns")
+            element_lines.append(f"    Header row: {', '.join(c.get('text','') for c in table_data.get('cells',[])[:table_data.get('cols',1)])}")
+            break
+
+    element_guide = "\n".join(element_lines) if element_lines else "  (No elements)"
+
+    # ── Design patterns ──
+    dp_guide = ""
+    if design_patterns:
+        dp_guide = "Design patterns:\n" + "\n".join(f"  - {dp}" for dp in design_patterns)
+
+    # ── Element groups ──
+    group_guide = ""
+    if element_groups:
+        group_guide = "Element groups:\n"
+        for g in element_groups[:5]:
+            group_guide += f"  - [{','.join(str(i) for i in g.get('element_ids',[]))}] role={g.get('group_role','')}: {g.get('description','')}\n"
+
+    # ── Asset info ──
+    asset_guide = ""
+    if assets_dir:
+        asset_guide = f"Reusable assets directory: {assets_dir}/"
+
+    prompt = f"""Generate an SVG slide that faithfully reproduces the reference layout described below.
+
+## Content to Display
 - Title: {title}
 - Body: {chr(10).join(f'  - {b}' for b in body) if body else 'N/A'}
 - Page Type: {page_type}
 - Layout: {layout_type}
 
-## Style Requirements (MUST MATCH EXACTLY)
+## Reference Layout Structure
+The source PPT slide has these elements arranged in this layout:
+
+{element_guide}
+
+{dp_guide}
+{group_guide}
+{asset_guide}
+
+## Visual Style (MUST MATCH)
 1. **Background**: {bg_description}. Background color: {bg_color}. Use a full-size <rect> for background.
 2. **Color Palette** (use ONLY these hex colors):
 {color_guide}
 3. **Typography**: Use ONLY font-family="{font_family}". Title size 28-36pt, body 14-18pt.
 4. **Layout Pattern**: {layout_description or f"Standard {layout_type} layout"}
+   Follow the positions and sizes from the Reference Layout Structure above.
 5. **NO banned features**: No masks, no rgba(), no @font-face, no <style> tags, no HTML entities.
    Use ONLY hex colors. Use <tspan> for inline text styling. Use raw Unicode.
 
 ## Technical Constraints
 - SVG viewBox="0 0 1280 720"
 - All shapes must be standard SVG elements (rect, circle, path, text, tspan)
-- Top-level <g> groups with descriptive IDs
+- Top-level <g> groups with descriptive IDs matching their role
 - Do NOT use <foreignObject>, <textPath>, <script>
 - All colors as #HEX, opacity via fill-opacity attribute
+- If images are referenced (from assets/), use <image> tags with xlink:href
 """
 
     # Previous iteration feedback

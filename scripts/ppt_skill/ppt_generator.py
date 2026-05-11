@@ -14,6 +14,7 @@ Orchestrates parallel slide generation:
 
 from __future__ import annotations
 
+import json
 import yaml
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -44,18 +45,75 @@ class GenerationResult:
 
 
 def _load_spec_pages(spec_dir: Path) -> tuple[list[dict], dict]:
-    """Load all spec pages and metadata from a spec directory."""
+    """Load all spec pages and metadata from a spec directory.
+
+    Supports three formats:
+      1. VL JSON format: specs/<name>/spec.json + <layout>.json files
+      2. Legacy directory YAML: specs/<name>/pages/<type>/page_*.yaml
+      3. Legacy flat YAML: specs/<name>/spec.yaml
+
+    Returns:
+        (spec_pages, metadata) where each page dict contains:
+          page_type, layout_sub_type, elements, background, colors, typography, assets_dir
+    """
     spec_pages: list[dict] = []
 
-    # Try to load pages from the directory structure
+    # ── Format 1: VL JSON spec ──
+    spec_json = spec_dir / "spec.json"
+    if spec_json.exists():
+        try:
+            master = json.loads(spec_json.read_text(encoding="utf-8"))
+            metadata = {
+                "colors": master.get("palette", {}),
+                "typography": master.get("typography", {}),
+                "canvas": master.get("canvas", {}),
+                "spec_name": master.get("spec_name", spec_dir.name),
+                "source": master.get("source", ""),
+                "slide_count": master.get("slide_count", 0),
+                "assets_dir": str(spec_dir / "assets"),
+            }
+
+            for layout_ref in master.get("layouts", []):
+                layout_file = layout_ref.get("file", "")
+                if not layout_file:
+                    continue
+                layout_path = spec_dir / layout_file
+                if not layout_path.exists():
+                    continue
+                try:
+                    page_data = json.loads(layout_path.read_text(encoding="utf-8"))
+                    spec_pages.append({
+                        "page_type": page_data.get("page_type", "content"),
+                        "layout_sub_type": page_data.get("layout_sub_type", "full_width"),
+                        "elements": page_data.get("elements", []),
+                        "element_groups": page_data.get("element_groups", []),
+                        "design_patterns": page_data.get("design_patterns", []),
+                        "background": page_data.get("background", {
+                            "type": "solid", "color": "#FFFFFF", "description": ""
+                        }),
+                        "background_color": _resolve_bg_color(page_data.get("background", {})),
+                        "background_description": page_data.get("background", {}).get("description", ""),
+                        "colors": metadata["colors"],
+                        "typography": metadata["typography"],
+                        "canvas": metadata["canvas"],
+                        "slide_indices": layout_ref.get("slide_indices", []),
+                        "assets_dir": str(spec_dir / "assets"),
+                    })
+                except Exception:
+                    pass
+
+            if spec_pages:
+                return spec_pages, metadata
+        except Exception:
+            pass
+
+    # ── Format 2: Legacy directory YAML ──
     pages_dir = spec_dir / "pages"
     if pages_dir.exists():
         for page_type_dir in sorted(pages_dir.iterdir()):
             if not page_type_dir.is_dir():
                 continue
             page_type = page_type_dir.name
-
-            # Handle content sub-type directories
             if page_type == "content":
                 for sub_dir in sorted(page_type_dir.iterdir()):
                     if sub_dir.is_dir():
@@ -80,13 +138,12 @@ def _load_spec_pages(spec_dir: Path) -> tuple[list[dict], dict]:
                     except Exception:
                         pass
 
-    # If no pages found in directory structure, try legacy single YAML
+    # ── Format 3: Legacy single YAML ──
     if not spec_pages:
         spec_yaml = spec_dir / "spec.yaml"
         if spec_yaml.exists():
             try:
                 spec_data = yaml.safe_load(spec_yaml.read_text(encoding="utf-8"))
-                # Wrap metadata as a single "page" for backward compat
                 if spec_data:
                     spec_pages = [{
                         "page_type": "content",
@@ -99,7 +156,7 @@ def _load_spec_pages(spec_dir: Path) -> tuple[list[dict], dict]:
             except Exception:
                 pass
 
-    # Load metadata (colors, typography)
+    # Load metadata for non-VL formats
     metadata: dict = {}
     spec_yaml = spec_dir / "spec.yaml"
     if spec_yaml.exists():
@@ -109,6 +166,20 @@ def _load_spec_pages(spec_dir: Path) -> tuple[list[dict], dict]:
             pass
 
     return spec_pages, metadata
+
+
+def _resolve_bg_color(background: dict) -> str:
+    """Resolve background info to a single hex color string."""
+    if not background:
+        return "#FFFFFF"
+    bg_type = background.get("type", "solid")
+    if bg_type == "solid":
+        return background.get("color", "#FFFFFF")
+    if bg_type == "image":
+        return "#FFFFFF"  # image background, use white as base
+    if bg_type == "gradient":
+        return background.get("gradient_stops", [{}])[0].get("color", "#FFFFFF") if background.get("gradient_stops") else "#FFFFFF"
+    return "#FFFFFF"
 
 
 def _load_content_outline(outline_path: Path) -> dict:
@@ -219,11 +290,10 @@ def generate_pptx(
     # Sort by slide number
     result.slide_results.sort(key=lambda r: r.slide_index)
 
-    # Phase 2: Layout Design (new)
+    # Phase 2: Layout Design — LLM-driven agent loop using prompt-ppt-layout.md
     designer = LayoutDesigner()
     for i, sr in enumerate(result.slide_results):
         if sr.passed:
-            # Apply layout design using WPS hierarchy
             slide_content = {
                 "w": tasks[i].get("section_name", ""),
                 "p": tasks[i].get("title", ""),
@@ -233,7 +303,7 @@ def generate_pptx(
                 (p for p in spec_pages if p.get("page_type") == sr.page_type),
                 {}
             )
-            layout_result = designer.design(slide_content, spec_page, None)
+            layout_result = designer.design(slide_content, spec_page, generate_callback)
             result.layout_results.append(layout_result)
             if layout_result.passed:
                 result.layout_passed_count += 1

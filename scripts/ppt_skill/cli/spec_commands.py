@@ -7,16 +7,22 @@ these are CLI commands designed for both human and programmatic consumption.
 Functions are callable directly from Python (e.g., from Phase 3–4 code)
 without requiring argparse. They will also be wired to a CLI entry point
 in Phase 5 (packaging).
+
+Supports two extraction modes:
+  - extract_spec: Original enhanced spec extraction (YAML, text-preserving)
+  - extract_vl_spec: New VL-driven extraction (JSON, no text content, layout dedup)
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 import yaml
 
 from ppt_skill.spec.enhanced_extractor import SpecExtractor
+from ppt_skill.spec.vl_spec_extractor import VLVSpecExtractor
 
 # Filename for the active spec marker
 _ACTIVE_FILE = ".active"
@@ -46,22 +52,43 @@ def extract_spec(name: str, pptx_path: str, specs_dir: str = "specs") -> Path:
     extractor = SpecExtractor()
     spec = extractor.extract(Path(pptx_path))
     spec.metadata["name"] = name
-    # Override the spec root to use the provided specs_dir
     spec.metadata["specs_dir"] = specs_dir
     extractor.save(spec, base_dir=specs_dir)
     return Path(specs_dir) / name
 
-    slide_count = len(spec.slides)
-    print(f'\u2713 Spec "{name}" extracted from {pptx_path} \u2192 {output_path} ({slide_count} slides)')
-    return output_path
+
+def extract_vl_spec(pptx_path: str, name: str | None = None, specs_dir: str = "specs") -> Path:
+    """Extract a VL-driven design spec from a PPTX file.
+
+    Uses VL model to analyze element roles and relationships, producing
+    deduplicated JSON spec files with NO text content — only attributes,
+    roles, and properties.
+
+    Args:
+        pptx_path: Path to the source .pptx file.
+        name: Optional spec name. Auto-generated from filename if None.
+        specs_dir: Directory where spec directories are stored (default: "specs").
+
+    Returns:
+        Path to the created spec directory.
+
+    Example::
+
+        path = extract_vl_spec("deck.pptx")
+        print(path)  # → specs/deck/
+    """
+    extractor = VLVSpecExtractor()
+    spec_dir = extractor.extract(pptx_path, output_name=name)
+    return spec_dir
 
 
 def list_specs(specs_dir: str = "specs") -> list[str]:
-    """List all available design specs (supports both flat and directory formats).
+    """List all available design specs.
 
-    Returns spec names found from either:
+    Supports three formats:
       - Flat: specs/<name>.yaml (legacy format)
       - Directory: specs/<name>/spec.yaml (enhanced format)
+      - VL: specs/<name>/spec.json (new VL-driven format)
     """
     spec_dir = Path(specs_dir)
     if not spec_dir.is_dir():
@@ -72,11 +99,12 @@ def list_specs(specs_dir: str = "specs") -> list[str]:
 
     # Legacy flat YAML format
     for yf in spec_dir.glob("*.yaml"):
-        names.add(yf.stem)
+        if yf.name != ".active":
+            names.add(yf.stem)
 
-    # Enhanced directory format
+    # Enhanced directory format (spec.yaml or spec.json)
     for sub in spec_dir.iterdir():
-        if sub.is_dir() and (sub / "spec.yaml").exists():
+        if sub.is_dir() and ((sub / "spec.yaml").exists() or (sub / "spec.json").exists()):
             names.add(sub.name)
 
     if not names:
@@ -84,49 +112,61 @@ def list_specs(specs_dir: str = "specs") -> list[str]:
         return []
 
     spec_list = sorted(names)
-    print(f"{'Name':<30} {'Slides':<8}")
-    print("-" * 50)
+    print(f"{'Name':<30} {'Slides':<8} {'Format':<12}")
+    print("-" * 52)
     for name in spec_list:
-        # Try to read metadata
         slide_count = "?"
-        # Check directory format first
-        spec_yaml = spec_dir / name / "spec.yaml"
-        if spec_yaml.exists():
+        fmt = "?"
+        spec_json = spec_dir / name / "spec.json"
+        spec_yaml_dir = spec_dir / name / "spec.yaml"
+        spec_yaml_flat = spec_dir / f"{name}.yaml"
+
+        if spec_json.exists():
+            fmt = "VL JSON"
             try:
-                data = yaml.safe_load(spec_yaml.read_text(encoding="utf-8"))
+                data = json.loads(spec_json.read_text(encoding="utf-8"))
+                slide_count = str(data.get("slide_count", "?"))
+            except Exception:
+                pass
+        elif spec_yaml_dir.exists():
+            fmt = "YAML dir"
+            try:
+                data = yaml.safe_load(spec_yaml_dir.read_text(encoding="utf-8"))
                 meta = data.get("metadata", {}) if data else {}
                 slide_count = str(meta.get("slide_count", "?"))
             except Exception:
                 pass
-        # Fall back to flat format
-        flat_yaml = spec_dir / f"{name}.yaml"
-        if slide_count == "?" and flat_yaml.exists():
+        elif spec_yaml_flat.exists():
+            fmt = "YAML flat"
             try:
-                data = yaml.safe_load(flat_yaml.read_text(encoding="utf-8"))
+                data = yaml.safe_load(spec_yaml_flat.read_text(encoding="utf-8"))
                 slide_count = str(data.get("metadata", {}).get("slide_count", "?")) if data else "?"
             except Exception:
                 pass
-        print(f"{name:<30} {slide_count:<8}")
+
+        print(f"{name:<30} {slide_count:<8} {fmt:<12}")
 
     return spec_list
 
 
 def select_spec(name: str, specs_dir: str = "specs") -> Path:
-    """Set a spec as the active specification (supports both flat and directory formats)."""
+    """Set a spec as the active specification."""
     spec_dir = Path(specs_dir)
     spec_path = spec_dir / f"{name}.yaml"
     spec_dir_path = spec_dir / name / "spec.yaml"
+    spec_json_path = spec_dir / name / "spec.json"
 
-    if not spec_path.is_file() and not spec_dir_path.is_file():
-        # List available specs for helpful error
+    found = spec_path.is_file() or spec_dir_path.is_file() or spec_json_path.is_file()
+    if not found:
         available = []
         if spec_dir.is_dir():
             available = sorted(
-                [f.stem for f in spec_dir.glob("*.yaml") if f.is_file()]
-                + [d.name for d in spec_dir.iterdir() if d.is_dir() and (d / "spec.yaml").exists()]
+                [f.stem for f in spec_dir.glob("*.yaml") if f.is_file() and f.name != ".active"]
+                + [d.name for d in spec_dir.iterdir()
+                   if d.is_dir() and ((d / "spec.yaml").exists() or (d / "spec.json").exists())]
             )
         print(
-            f"\u2717 Spec '{name}' not found.",
+            f"Spec '{name}' not found.",
             f"Available: {', '.join(available)}" if available else "No specs available.",
             file=sys.stderr,
         )
@@ -134,7 +174,7 @@ def select_spec(name: str, specs_dir: str = "specs") -> Path:
 
     active_file = spec_dir / _ACTIVE_FILE
     active_file.write_text(name + "\n", encoding="utf-8")
-    print(f"\u2713 Active spec set to: {name}")
+    print(f"Active spec set to: {name}")
     return active_file
 
 
@@ -163,6 +203,7 @@ def get_active_spec(specs_dir: str = "specs") -> str | None:
 
 __all__ = [
     "extract_spec",
+    "extract_vl_spec",
     "get_active_spec",
     "list_specs",
     "select_spec",

@@ -13,6 +13,7 @@ content → generate natively editable slides with agent-loop style verification
 | Command | Purpose |
 |---------|---------|
 | `/ppt-spec <file.pptx>` | Extract design spec from reference PPTX (cover/toc/content/end_page recognition + layout analysis) |
+| `/ppt-spec-vl <file.pptx>` | Extract VL-driven spec with element role analysis, layout dedup, JSON output (no text content) |
 | `/ppt-outline <content>` | Generate content outline using WPS model from prompt-ppt-content.md (titles + body only) |
 | `/ppt-diagram <type> <content>` | Generate diagram (architecture/flowchart/sequence) from description |
 | `/ppt <content or file>` | Generate PPT: gather content → confirm outline → generate PPTX → apply layout design |
@@ -35,6 +36,7 @@ python scripts/ppt_cli.py convert slide1.svg slide2.svg -o output.pptx
 | Command | Description |
 |---------|-------------|
 | `extract-spec <pptx>` | Extract design spec → `specs/<name>/` directory (pages by type, assets, logic.yaml) |
+| `extract-vl-spec <pptx>` | Extract VL-driven spec → `specs/<name>/` JSON + slide images (no text, layout dedup) |
 | `generate-pptx` | Generate PPTX from spec + outline with agent-loop eval (--spec --outline -o --workers) |
 | `convert <svg>... -o <pptx>` | Direct SVG→native-shape PPTX conversion |
 | `list-specs` | List available design specs |
@@ -48,15 +50,37 @@ All scripts run from the skill root directory.
 
 ### `/ppt-outline` — Generate Content Outline
 
-1. **Analyze input**: Topic, theme, article, or existing outline
-2. **Agent loop**: Use `prompt-ppt-content.md` principles
-   - If insufficient input → adaptive questioning (8-question cap)
-   - Extract sections and key points
-3. **Apply WPS model**: Each slide has:
-   - **W (What)**: Navigation label
+This command has two modes depending on input richness:
+
+**Mode A — Topic-only (input <= 30 words, no structure markers)**
+The user only provided a topic name (e.g. "AI in Healthcare 2024").
+Do NOT proceed with outline generation directly. Instead:
+
+1. **Detect sufficiency**: The skill outputs a structured JSON delegation signal:
+   ```json
+   {
+     "type": "delegate",
+     "skill": "deerflow-skill",
+     "query": "<topic>",
+     "context": "Research this presentation topic comprehensively. Gather key sections, trends, data points, examples, case studies, and supporting evidence needed for a professional slide deck."
+   }
+   ```
+2. **Call deerflow-skill**: The outer agent reads this signal and invokes `deerflow-skill` with the query to research the topic thoroughly.
+3. **Return enriched content**: After deerflow-skill returns comprehensive research, call `ppt-skill` again with the enriched content.
+4. **Apply prompt-ppt-content.md**: When the content is received (now rich), apply `prompt-ppt-content.md` WPS rules to optimize the content into a structured outline:
+   - Each slide gets **W (What)**: Navigation label
    - **P (Point)**: Core conclusion (bold, prominent)
    - **S (Support)**: Evidence (data, cases, quotes)
-4. **Output**: Markdown outline ready for `/ppt` generation
+5. **Output**: Markdown outline ready for `/ppt` generation
+
+**Mode B — Rich content (detailed input with structure)**
+The user provided sufficient detail (bullets, sections, or extensive text).
+
+1. **Apply WPS model**: Use `prompt-ppt-content.md` principles directly
+   - Analyze input → extract sections and key points
+   - Structure each slide with W (What) / P (Point) / S (Support)
+   - Validate outline completeness
+2. **Output**: Markdown outline ready for `/ppt` generation
 
 ### `/ppt-diagram` — Generate Diagram
 
@@ -78,6 +102,10 @@ All scripts run from the skill root directory.
 
 ### `/ppt-spec` — Extract Design Spec
 
+Two extraction modes:
+
+**Mode A — Standard (`extract-spec`) — preserves text content**
+
 1. Read the reference PPTX with `python-pptx` + `lxml`
 2. Extract color palette (12 HEX values from theme1.xml), fonts, backgrounds
 3. Classify each page: cover / toc / transition / content / end_page
@@ -87,15 +115,38 @@ All scripts run from the skill root directory.
 7. Analyze presentation logic (narrative, density rhythm, sections)
 8. Save as directory: `specs/<name>/` with `spec.yaml`, `pages/`, `assets/`, `logic.yaml`
 
+**Mode B — VL-driven (`extract-vl-spec`) — no text content, layout dedup**
+
+1. Read the reference PPTX with `python-pptx`, extract every element's properties:
+   - Position, size (normalized 0-1)
+   - Font family, size, weight, color, alignment
+   - Fill color, stroke color/width, corner radius
+   - Image dimensions
+   - Z-order, shape name
+2. Render each slide to PNG via macOS QuickLook
+3. Send slide image + structured element properties to **VL model**:
+   - VL compares the visual image with extracted element attributes
+   - VL describes each element's ROLE: "Element 1 is the title bar",
+     "Elements 3-6 form a flowchart in the content area"
+   - VL identifies composite groups and design patterns
+4. **Layout dedup**: group similar pages by element structure signature
+   - Cover/end_page → one JSON file each
+   - Content pages with same layout → merged into one JSON file
+5. Output `specs/<name>/` with:
+   - `spec.json` — master spec (palette, fonts, canvas, layout index)
+   - `cover.json`, `end_page.json`, `content_*.json` — per-layout blueprints
+   - `slides/` — slide PNG screenshots
+   - Source PPTX copy for reference
+
 See [references/spec-format.md](references/spec-format.md).
 
 ### `/ppt` — Generate Presentation
 
 1. **Assess sufficiency**: evaluate if user input has enough detail
-2. **If insufficient**: ask section-level overview questions, then gap-fill (8-question cap)
-3. **Generate outline**: slide-by-slide ContentOutline with titles, body, layout recommendations
+2. **If insufficient (topic-only)**: call `deerflow-skill` to research the topic, gather comprehensive content, then apply `prompt-ppt-content.md` for outlined>
+3. **If sufficient**: proceed directly with `prompt-ppt-content.md` WPS optimization
 4. **User confirms** the outline before generation
-5. **Phase 1: Spec Matching** (agent-loop, per slide, in parallel):
+5. **Phase 1: Spec Matching** (agent-loop, per slide, in parallel, using VL model):
    - Match slide to correct spec page type (cover→cover spec, content→matching layout spec, etc.)
    - Generate SVG with strict style constraints from spec
    - Evaluate: color match, font match, layout IoU, background, density
@@ -115,9 +166,9 @@ See [references/spec-format.md](references/spec-format.md).
 
 When the user just wants to prepare content without generating PPTX:
 
-1. Assess content sufficiency (4-dimension rubric: structure, detail, audience, scope)
-2. If sufficient → directly generate outline
-3. If insufficient → adaptive questioning: section-level overviews first, then gap-fill
+1. Assess content sufficiency (word count, structure markers)
+2. If sufficient → directly apply `prompt-ppt-content.md` WPS optimization
+3. If insufficient (topic-only) → call `deerflow-skill` to research, then apply WPS optimization
 4. Output: `outlines/<name>.yaml` — ready for `/ppt` generation
 
 ## Configuration

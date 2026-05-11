@@ -5,6 +5,7 @@ PPT Skill — CLI entry point.
 Unified command-line interface for the PPT generation skill:
   - convert: SVG → native-shape PPTX conversion
   - extract-spec: Extract design spec from reference PPTX
+  - extract-vl-spec: Extract VL-driven spec from PPTX (JSON, no text, layout dedup)
   - outline: Generate content outline using WPS model (prompt-ppt-content.md)
   - gather-content: Content questioning → outline generation
   - generate-pptx: Generate PPTX from outline + spec (two-phase: spec matching + layout design)
@@ -77,6 +78,30 @@ def cmd_extract_spec(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_extract_vl_spec(args: argparse.Namespace) -> int:
+    """Extract VL-driven design spec from a reference PPTX file.
+
+    Uses VL model to analyze element roles and relationships, producing
+    deduplicated JSON spec files with NO text content — only attributes,
+    roles, and properties.
+
+    Output: specs/<name>/ with:
+      - spec.json (master spec with palette, fonts, canvas)
+      - slides/ (slide PNGs)
+      - cover.json, end_page.json, content_*.json (layout blueprints)
+    """
+    from ppt_skill.spec.vl_spec_extractor import VLVSpecExtractor
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: PPTX file not found: {input_path}", file=sys.stderr)
+        return 1
+
+    extractor = VLVSpecExtractor()
+    extractor.extract(input_path, output_name=args.name)
+    return 0
+
+
 def cmd_list_specs(args: argparse.Namespace) -> int:
     """List all available design specs."""
     from ppt_skill.cli.spec_commands import list_specs, get_active_spec
@@ -108,7 +133,7 @@ def cmd_select_spec(args: argparse.Namespace) -> int:
 def cmd_gather_content(args: argparse.Namespace) -> int:
     """Gather content through adaptive questioning and generate outline."""
     from ppt_skill.content.gatherer import ContentGatherer
-    from ppt_skill.content.model import ContentOutline
+    from ppt_skill.content.model import ContentOutline, _dataclass_to_dict
 
     input_text = args.input
     if Path(args.input).exists():
@@ -128,33 +153,58 @@ def cmd_gather_content(args: argparse.Namespace) -> int:
 
     issues = outline.validate()
     if issues:
-        print(f"Warning: Outline has {len(issues)} validation issues:")
+        print(f"Warning: Outline has {len(issues)} validation issues:", file=sys.stderr)
         for issue in issues:
-            print(f"  - {issue}")
+            print(f"  - {issue}", file=sys.stderr)
 
-    yaml_str = outline.to_yaml()
-    print(yaml_str)
+    # Output as Markdown following prompt-ppt-content.md WPS format
+    print(outline.to_ppt_markdown())
+
+    # Save to outlines/ directory as markdown
+    path = gatherer.save("outlines")
+    print(f"\nOutline saved to: {path}", file=sys.stderr)
+
     return 0
 
 
 def cmd_outline(args: argparse.Namespace) -> int:
-    """Generate PPT content outline using WPS model and prompt-ppt-content.md principles."""
-    from ppt_skill.content.outline_generator import OutlineGenerator
+    """Generate PPT content outline using WPS model and prompt-ppt-content.md principles.
+
+    Uses ContentGatherer to generate a proper outline from rich content.
+    Output follows the WPS markdown format specified in references/prompt-ppt-content.md.
+    Topic-only input (<=30 words, no structure) outputs a delegation signal.
+    """
+    from ppt_skill.content.outline_generator import (
+        is_topic_only, build_delegation_signal,
+    )
+    from ppt_skill.content.gatherer import ContentGatherer
 
     input_text = args.input
     if Path(args.input).exists():
         input_text = Path(args.input).read_text()
 
-    generator = OutlineGenerator()
-    outline = generator.generate(input_text, mode=args.mode)
+    # Detect topic-only input and output delegation signal
+    if is_topic_only(input_text):
+        signal = build_delegation_signal(input_text)
+        print(signal)
+        return 0
 
-    # Output as markdown
-    print(outline.to_markdown())
+    # Use ContentGatherer for proper outline generation
+    gatherer = ContentGatherer()
+    outline = gatherer.gather(input_text, mode=args.mode or "skip_questions")
 
-    # Optionally save
-    if args.output:
-        path = generator.save(outline, args.output)
-        print(f"\nOutline saved to: {path}", file=sys.stderr)
+    issues = outline.validate()
+    if issues:
+        print(f"Warning: Outline has {len(issues)} validation issues:", file=sys.stderr)
+        for issue in issues:
+            print(f"  - {issue}", file=sys.stderr)
+
+    # Output as Markdown following prompt-ppt-content.md WPS format
+    print(outline.to_ppt_markdown())
+
+    # Always save to outlines/ directory
+    path = gatherer.save("outlines")
+    print(f"\nOutline saved to: {path}", file=sys.stderr)
 
     return 0
 
@@ -260,6 +310,12 @@ def main() -> int:
     # extract-spec
     p_extract = sub.add_parser("extract-spec", help="Extract design spec from PPTX")
     p_extract.add_argument("input", help="Reference PPTX file")
+    p_extract.add_argument("--name", help="Spec name (default: filename stem)")
+
+    # extract-vl-spec
+    p_vl_extract = sub.add_parser("extract-vl-spec", help="Extract VL-driven spec from PPTX (JSON, no text)")
+    p_vl_extract.add_argument("input", help="Reference PPTX file")
+    p_vl_extract.add_argument("--name", help="Spec name (default: auto-generated from filename)")
 
     # list-specs
     sub.add_parser("list-specs", help="List available design specs")
@@ -296,6 +352,7 @@ def main() -> int:
     dispatch = {
         "convert": cmd_convert,
         "extract-spec": cmd_extract_spec,
+        "extract-vl-spec": cmd_extract_vl_spec,
         "list-specs": cmd_list_specs,
         "select-spec": cmd_select_spec,
         "gather-content": cmd_gather_content,

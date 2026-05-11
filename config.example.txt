@@ -2,15 +2,32 @@
 # Copy to config.txt and fill in your settings.
 # The skill reads config.txt from the project root directory.
 
-# ── Vision-Language Model (for spec extraction) ─────────────────────
+# ── Language Model (for outline generation & layout design) ────────────
+
+# Provider: openai | anthropic | gemini | ollama
+LLM_PROVIDER=openai
+
+# Model name (text-only model, e.g. gpt-4o, claude-sonnet-4)
+LLM_MODEL=gpt-4o
+
+# API key
+LLM_API_KEY=sk-your-key-here
+
+# Custom API base (for ollama: http://localhost:11434/v1)
+LLM_API_BASE=
+
+# Maximum tokens for LLM response
+LLM_MAX_TOKENS=8192
+
+# ── Vision-Language Model (for spec extraction & style comparison) ────
 
 # Provider: openai | anthropic | gemini | ollama
 VL_PROVIDER=openai
 
-# Model name
+# Model name (vision-capable model, e.g. gpt-4o, claude-sonnet-4)
 VL_MODEL=gpt-4o
 
-# API key (required for openai/anthropic/gemini)
+# API key
 VL_API_KEY=sk-your-key-here
 
 # Custom API base (for ollama: http://localhost:11434/v1)

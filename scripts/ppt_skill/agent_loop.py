@@ -79,31 +79,24 @@ def vl_compare_screenshot(
     spec_page: dict,
     previous_issues: list[str] | None = None,
 ) -> dict:
-    """Send screenshot to Doubao VL for comparison against spec.
+    """Send screenshot to VL model for comparison against spec.
 
     Returns {"score": 0-100, "issues": [...], "fixes": [...]}
     """
     try:
-        from openai import OpenAI
         from PIL import Image
     except ImportError:
-        return {"score": 0, "issues": ["VL client not available"], "fixes": []}
+        return {"score": 0, "issues": ["PIL not available"], "fixes": []}
 
-    api_key = os.environ.get("DOUBAO_API_KEY",
-        open(Path("config.txt")).read() if Path("config.txt").exists() else "")
-    if isinstance(api_key, str) and "=" in api_key:
-        for line in api_key.split("\n"):
-            if line.startswith("VL_API_KEY="):
-                api_key = line.split("=", 1)[1].strip().strip('"')
-                break
+    from ppt_skill.config import get_vl_client, get_vl_config
 
+    vl_cfg = get_vl_config()
+    api_key = vl_cfg["api_key"] or os.environ.get("VL_API_KEY", "")
     if not api_key:
-        return {"score": 0, "issues": ["No API key configured"], "fixes": []}
+        return {"score": 0, "issues": ["No VL API key configured"], "fixes": []}
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://ark.cn-beijing.volces.com/api/v3",
-    )
+    client = get_vl_client()
+    model = vl_cfg["model"]
 
     # Load and compress image
     try:
@@ -142,7 +135,7 @@ Return JSON: {{"score": 85, "issues": ["title size wrong: 36pt should be 40pt"],
 """
     try:
         response = client.chat.completions.create(
-            model="doubao-seed-2-0-pro-260215",
+            model=model,
             messages=[{
                 "role": "user",
                 "content": [

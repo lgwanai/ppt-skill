@@ -325,6 +325,23 @@ def evaluate_style(
 
     # 3. Layout evaluation
     regions = spec_page.get("regions", [])
+
+    # VL JSON spec uses elements instead of regions — convert
+    if not regions:
+        elements = spec_page.get("elements", [])
+        regions = []
+        for el in elements:
+            pos = el.get("position", {})
+            if pos:
+                regions.append({
+                    "role": el.get("semantic_role", "element"),
+                    "x": pos.get("x", 0) * 1280,
+                    "y": pos.get("y", 0) * 720,
+                    "w": pos.get("w", 0) * 1280,
+                    "h": pos.get("h", 0) * 720,
+                    "element_type": el.get("element_type", "shape"),
+                })
+
     if regions:
         report.layout_score, li = evaluate_layout(svg_text, regions)
         report.issues.extend(f"[layout] {i}" for i in li)

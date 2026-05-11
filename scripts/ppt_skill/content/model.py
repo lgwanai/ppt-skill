@@ -126,10 +126,6 @@ class ContentOutline:
     slides: list[SlideEntry] = field(default_factory=list)
     spec_name: str = ""
 
-    # ------------------------------------------------------------------
-    # Validation
-    # ------------------------------------------------------------------
-
     def validate(self) -> list[str]:
         """Validate the outline and return a list of issue descriptions.
 
@@ -157,11 +153,13 @@ class ContentOutline:
                 issues.append(f"Slide {n}: empty title")
 
             # Body: at least one entry with > 10 characters after strip
-            meaningful_body = [
-                b for b in slide.body if len(b.strip()) > 10
-            ]
-            if not meaningful_body:
-                issues.append(f"Slide {n}: body too short or empty")
+            # (skip check for section_divider — they are just section titles)
+            if slide.layout_type != OutlineLayoutType.SECTION_DIVIDER:
+                meaningful_body = [
+                    b for b in slide.body if len(b.strip()) > 10
+                ]
+                if not meaningful_body:
+                    issues.append(f"Slide {n}: body too short or empty")
 
             # Layout type
             if not isinstance(slide.layout_type, OutlineLayoutType):
@@ -209,6 +207,84 @@ class ContentOutline:
             sort_keys=False,
             allow_unicode=True,
         )
+
+    def to_ppt_markdown(self) -> str:
+        """Render outline as clean, readable markdown for PPT generation.
+
+        WPS (What/Point/Support) is used internally by the AI to structure
+        content, but the output markdown is clean and readable:
+          - Cover, TOC, section dividers, content slides
+          - Content slides show title + bullet points directly
+          - Educational/demo content labeled as 操作目标/步骤
+        """
+        lines: list[str] = []
+
+        title = self.presentation_title
+        lines.append(f"# {title}")
+        lines.append("")
+
+        # ── Cover ──
+        cover = next((s for s in self.slides if s.layout_type == OutlineLayoutType.TITLE), None)
+        lines.append("## 封面")
+        lines.append(f"- 主标题：{title}")
+        if cover and cover.body:
+            lines.append(f"- 副标题：{cover.body[0]}")
+        lines.append("")
+
+        # ── Table of Contents ──
+        if self.sections:
+            lines.append("## 目录")
+            for i, section in enumerate(self.sections, 1):
+                if section:
+                    lines.append(f"{i}. {section}")
+            lines.append("")
+
+        lines.append("---")
+        lines.append("")
+
+        # ── Slides per section ──
+        prev_section = ""
+        for slide in self.slides:
+            if slide.layout_type == OutlineLayoutType.TITLE:
+                continue
+
+            w = slide.title or slide.section_name or ""
+            body = slide.body if slide.body else []
+
+            # Section header
+            if slide.section_name and slide.section_name != prev_section:
+                prev_section = slide.section_name
+                lines.append(f"## {slide.section_name}")
+                lines.append("")
+
+            # Layout-type prefix
+            if slide.layout_type == OutlineLayoutType.SECTION_DIVIDER:
+                lines.append(f"### 转场页：{w}")
+                lines.append("")
+            else:
+                # Detect content type
+                is_educational = any(kw in w for kw in ["演示", "案例", "示例", "步骤", "操作", "示范", "对比", "模板"])
+                if body and is_educational:
+                    lines.append(f"### {w}")
+                    lines.append("**操作目标**：")
+                    lines.append(f"- {body[0]}")
+                    if len(body) > 1:
+                        lines.append("**步骤**：")
+                        for item in body[1:]:
+                            lines.append(f"- {item}")
+                    lines.append("")
+                else:
+                    lines.append(f"### {w}")
+                    for item in body:
+                        lines.append(f"- {item}")
+                    lines.append("")
+
+        # ── End ──
+        lines.append("## 结束")
+        lines.append("- Thank You")
+        lines.append("")
+
+        return "\n".join(lines)
 
     @classmethod
     def from_dict(cls, data: dict) -> ContentOutline:

@@ -190,12 +190,16 @@ class ContentGatherer:
         return self.outline
 
     def save(self, outlines_dir: str | Path = "outlines") -> Path:
-        """Save the generated outline as YAML. Returns file path.
+        """Save the generated outline as YAML and Markdown. Returns YAML file path.
+
+        Two files are written:
+          - <name>.yaml  — structured YAML for programmatic consumption
+          - <name>.md    — human-readable WPS Markdown format
 
         Parameters
         ----------
         outlines_dir : str or Path
-            Directory for outline YAML files (created if missing).
+            Directory for outline files (created if missing).
 
         Returns
         -------
@@ -230,7 +234,7 @@ class ContentGatherer:
             ),
         })
 
-        # Serialize using Phase 2 pattern
+        # Serialize YAML (for programmatic use)
         data = _dataclass_to_dict(self.outline)
         yaml_text = yaml.dump(
             data,
@@ -238,11 +242,15 @@ class ContentGatherer:
             sort_keys=False,
             allow_unicode=True,
         )
+        yaml_path = outlines_path / f"{name}.yaml"
+        yaml_path.write_text(yaml_text, encoding="utf-8")
 
-        file_path = outlines_path / f"{name}.yaml"
-        file_path.write_text(yaml_text, encoding="utf-8")
+        # Serialize Markdown (human-readable WPS format)
+        md_text = self.outline.to_ppt_markdown()
+        md_path = outlines_path / f"{name}.md"
+        md_path.write_text(md_text, encoding="utf-8")
 
-        return file_path
+        return yaml_path
 
     @staticmethod
     def load_outline(
@@ -411,18 +419,17 @@ class ContentGatherer:
             outline.metadata["validation_issues"] = issues
             outline.metadata["slide_count"] = len(slides_v2)
 
-            # Revalidate — if still failing, commit best-effort with warning
+            # Revalidate — if still failing, fix individual slides
             issues_v2 = outline.validate()
             if issues_v2:
+                # Fix slides with short body by supplementing from title
+                for slide in outline.slides:
+                    meaningful = [b for b in slide.body if len(b.strip()) > 10]
+                    if not meaningful and slide.title:
+                        slide.body = [slide.title]
                 outline.metadata["quality_warning"] = (
-                    f"Outline validation failed with {len(issues_v2)} "
-                    f"issue(s): {issues_v2}"
+                    f"Outline has {len(issues_v2)} slides with short content — auto-supplemented"
                 )
-                # Add warning to first slide if it has notes capability
-                if outline.slides:
-                    outline.slides[0].notes = (
-                        f"[Quality Warning] {issues_v2[0]}" if issues_v2 else ""
-                    )
 
         # --- Zero sections edge case ---
         if not self.session or not self.session.sections_identified:
@@ -479,7 +486,7 @@ class ContentGatherer:
             slides.append(SlideEntry(
                 slide_number=slide_num,
                 title=section,
-                body=[f"Start of {section}"],
+                body=[],  # Section dividers have no body
                 layout_type=OutlineLayoutType.SECTION_DIVIDER,
                 section_name=section,
             ))
@@ -504,7 +511,7 @@ class ContentGatherer:
                     slide_num += 1
                     slides.append(SlideEntry(
                         slide_number=slide_num,
-                        title=f"{section}" if len(chunks) == 1 else f"{section} ({len(chunks)})",
+                        title=section,
                         body=chunk,
                         layout_type=layout,
                         section_name=section,
@@ -607,10 +614,48 @@ class ContentGatherer:
         points: list[str],
         max_per_slide: int = 5,
     ) -> list[list[str]]:
-        """Split a list of bullet points into chunks of max_per_slide."""
+        """Split a list of bullet points into chunks of max_per_slide.
+
+        Preserves table blocks (lines starting with |) — a table started
+        on one slide stays entirely on that slide.
+        """
         chunks: list[list[str]] = []
-        for i in range(0, len(points), max_per_slide):
-            chunks.append(points[i:i + max_per_slide])
+        current: list[str] = []
+        in_table = False
+
+        for point in points:
+            is_table_line = point.strip().startswith("|") and point.strip().endswith("|")
+            is_table_header = is_table_line and not in_table
+
+            # If this is a table header and current chunk has items, flush it
+            if is_table_header and current and len(current) >= max_per_slide * 0.5:
+                chunks.append(current)
+                current = []
+                in_table = False
+
+            # Table mode: keep accumulating until table ends
+            if is_table_line:
+                in_table = True
+                current.append(point)
+                continue
+            elif in_table:
+                # Table ended, flush current chunk
+                in_table = False
+                if current:
+                    chunks.append(current)
+                    current = []
+                current.append(point)
+                continue
+
+            # Normal point
+            current.append(point)
+            if len(current) >= max_per_slide:
+                chunks.append(current)
+                current = []
+
+        if current:
+            chunks.append(current)
+
         return chunks if chunks else [[]]
 
     def _derive_title(self, user_input: str) -> str:
@@ -618,15 +663,20 @@ class ContentGatherer:
         lines = [l.strip() for l in user_input.strip().splitlines() if l.strip()]
         if lines:
             first = lines[0]
-            # If first line is long, use it. If short (likely a title), use it.
+            first = first.lstrip("#").strip()  # Remove markdown heading markers
             return first[:100] if len(first) > 100 else first
         return "Presentation"
 
     def _derive_subtitle(self, user_input: str) -> str:
         """Derive a subtitle from the second line, or provide a default."""
         lines = [l.strip() for l in user_input.strip().splitlines() if l.strip()]
-        if len(lines) > 1:
-            return lines[1][:100]
+        speech_markers = ["讲师口述", "讲师身份", "讲师现场", "讲师发问", "演示建议", "> **讲师"]
+        import re
+        for line in lines[1:]:
+            clean = line.lstrip("#>").strip()
+            clean = re.sub(r"[（(]?\d+分钟[）)]?", "", clean).strip()
+            if clean and len(clean) > 5 and not any(m in clean for m in speech_markers):
+                return clean[:100]
         return ""
 
     # ------------------------------------------------------------------
@@ -637,11 +687,11 @@ class ContentGatherer:
         self,
         user_input: str,
     ) -> dict[str, list[str]]:
-        """Extract bullet-style content from user input text.
+        """Extract PPT bullet-style content from user input text.
 
-        Parses lines that look like section headers (numbered, or short
-        capitalized phrases) and gathers the following lines as content
-        points for each section.
+        Parses lines that look like section headers and gathers following
+        lines as content points. Filters out lecture/speech text,
+        blockquotes, time markers, and presenter instructions.
 
         Returns
         -------
@@ -653,16 +703,34 @@ class ContentGatherer:
 
         lines = user_input.strip().splitlines()
         current_section: str | None = None
+        speech_markers = ["讲师口述", "讲师身份", "讲师现场", "讲师发问", "演示建议", "> **讲师"]
 
         for line in lines:
             stripped = line.strip()
             if not stripped:
                 continue
 
+            # Skip speech/lecture markers entirely
+            if any(m in stripped for m in speech_markers):
+                continue
+            # Skip blockquotes (> ...) — these are lecture scripts, not slide content
+            if stripped.startswith(">"):
+                continue
+            # Skip time-only markers like "(5分钟)" or "（2分钟）"
+            import re
+            if re.match(r"^[（(]?\d+分钟[）)]?", stripped):
+                continue
+            # Skip horizontal rules
+            if re.match(r"^[-—]{3,}$", stripped):
+                continue
+            # Skip bare markdown headers
+            if re.match(r"^#+\s+", stripped):
+                continue
+
             # Check if this line is a section header
             is_header = False
             for section in sections:
-                if section.lower() in stripped.lower():
+                if section and section.lower() in stripped.lower():
                     current_section = section
                     is_header = True
                     if section not in result:
@@ -674,16 +742,15 @@ class ContentGatherer:
 
             # Not a header — append to current section
             if current_section:
-                # Skip arrow/bullet markers
                 clean = self._clean_bullet(stripped)
-                if clean and len(clean) > 3:
+                # Filter: skip speech, blockquotes, short fragments
+                if clean and len(clean) > 5 and not any(m in clean for m in speech_markers):
                     result.setdefault(current_section, []).append(clean)
             else:
-                # Before any section header — add to first section if exists
                 if sections and sections[0] not in result:
                     result.setdefault(sections[0], [])
                 clean = self._clean_bullet(stripped)
-                if clean and len(clean) > 3:
+                if clean and len(clean) > 5 and not any(m in clean for m in speech_markers):
                     if sections:
                         result.setdefault(sections[0], []).append(clean)
 
@@ -696,35 +763,71 @@ class ContentGatherer:
     def _extract_sections(self, user_input: str) -> list[str]:
         """Extract section/topic names from user input.
 
-        Heuristic: looks for numbered items (1., 2.), lines with "Section"
-        prefix, bold-style markers, or short capitalized phrases.
+        Heuristic: looks for ##/### headers, numbered items (1., 2.),
+        and short section titles.
 
-        Falls back to treating each paragraph block as a section.
+        Skips: lecturer instructions, bold-formatted arguments, quotes.
         """
         lines = [l.strip() for l in user_input.strip().splitlines() if l.strip()]
         sections: list[str] = []
 
-        # Pattern 1: Numbered structure → "1. Executive Summary"
-        for line in lines:
-            # Match "1.", "1)", "1 -" or "Section 1:"
-            import re
-            m = re.match(
-                r'^(?:\d+[\.\)]\s*|Section\s*\d+[:\-]\s*|#+\s*)(.+)$',
-                line,
-                re.IGNORECASE,
-            )
-            if m:
-                section_name = m.group(1).strip().rstrip(":")
-                if section_name and len(section_name) > 2:
-                    sections.append(section_name)
+        # Lines that are NOT valid section headers
+        speech_markers = ["讲师口述", "讲师身份", "讲师现场", "演示建议", "**讲师"]
+        skip_patterns = [
+            r"^\*.*\*$",           # *italic emphasis lines*
+            r"^>.+",                # blockquotes
+            r"^[-—]+$",             # horizontal rules
+            r"^\d+分钟[）)]?$",     # "2分钟）"
+            r"^[（(]?\d+分钟[）)]?",  # time markers like "(5分钟)"
+            r"^#+\s*$",             # bare headers
+        ]
 
-        # Pattern 2: Short lines that look like headers (≤40 chars, capitalized)
+        # Priority: ## and ### headers are the most reliable section markers
+        import re
+        for line in lines:
+            m = re.match(r"^##+\s+(.+)$", line)
+            if m:
+                name = m.group(1).strip().rstrip(":")
+                # Strip time markers like "（2分钟）"
+                name = re.sub(r"[（(]?\d+分钟[）)]?", "", name).strip()
+                if name and len(name) > 1 and not any(m in name for m in speech_markers):
+                    sections.append(name)
+
+        # Fallback: numbered structure → "1. 开场与前情回顾"
         if not sections:
             for line in lines:
+                # Skip speech/lecture lines
+                if any(m in line for m in speech_markers):
+                    continue
+                # Skip patterns
+                skip = False
+                for sp in skip_patterns:
+                    if re.match(sp, line):
+                        skip = True
+                        break
+                if skip:
+                    continue
+
+                m = re.match(
+                    r'^(?:\d+[\.\)]\s*|Section\s*\d+[:\-]\s*)(.+)$',
+                    line,
+                )
+                if m:
+                    name = m.group(1).strip().rstrip(":")
+                    if name and len(name) > 2:
+                        sections.append(name)
+
+        # Pattern 2: Short lines that look like headers (≤40 chars, no speech markers)
+        if not sections:
+            for line in lines:
+                if any(m in line for m in speech_markers):
+                    continue
                 if (
                     3 <= len(line) <= 40
-                    and line[0].isupper()
-                    and not line.endswith(".")
+                    and not line.startswith(">")
+                    and not line.startswith("*")
+                    and not line.endswith("。")
+                    and not line.endswith("：")
                 ):
                     sections.append(line)
 
@@ -732,7 +835,14 @@ class ContentGatherer:
         if not sections:
             sections = [f"Section {i + 1}" for i in range(min(3, max(2, len(lines) // 3)))]
 
-        return sections
+        # Deduplicate while preserving order
+        seen = set()
+        unique = []
+        for s in sections:
+            if s.lower() not in seen:
+                seen.add(s.lower())
+                unique.append(s)
+        return unique
 
     def _section_points_from_input(
         self,
@@ -742,9 +852,16 @@ class ContentGatherer:
         """Extract points relevant to a specific section from user input."""
         points: list[str] = []
         in_section = False
+        speech_markers = ["讲师口述", "讲师身份", "讲师现场", "讲师发问", "演示建议", "> **讲师"]
         for line in user_input.strip().splitlines():
             stripped = line.strip()
             if not stripped:
+                in_section = False
+                continue
+            if any(m in stripped for m in speech_markers):
+                in_section = False
+                continue
+            if stripped.startswith(">"):
                 in_section = False
                 continue
 
@@ -752,12 +869,15 @@ class ContentGatherer:
                 in_section = True
                 continue
 
-            if in_section and stripped.startswith(("-", "*", "•", "·")):
+            if in_section and (
+                stripped.startswith(("-", "*", "•", "·"))
+                or (stripped.startswith("|") and stripped.endswith("|"))  # table
+            ):
                 clean = self._clean_bullet(stripped)
-                if clean and len(clean) > 3:
+                if clean and len(clean) > 3 and not any(m in clean for m in speech_markers):
                     points.append(clean)
 
-        return points if points else [f"Content for {section_name}"]
+        return points if points else []
 
     def _build_content_summary(self, user_input: str) -> str:
         """Build a formatted content summary string for the LLM prompt."""

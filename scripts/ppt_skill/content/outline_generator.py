@@ -5,18 +5,94 @@ Uses agent loop to generate professional PPT content outline following WPS model
 - P (Point): Core conclusion statement
 - S (Support): Supporting evidence
 
+Supports two modes:
+  1. Topic-only mode: Input is just a topic name -> signals outer agent to
+     call deerflow-skill for research, then generates outline with enriched content.
+  2. Rich-content mode: Input has sufficient detail -> generates outline directly.
+
 Usage:
     generator = OutlineGenerator()
-    outline = generator.generate("AI in Healthcare 2024")
+    # Detect if input needs research delegation:
+    result = generator.assess_and_delegate("AI in Healthcare 2024")
+    # Or generate directly from rich content:
+    outline = generator.generate(prompt_ppt_content_rules + enriched_content)
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+# ---------------------------------------------------------------------------
+# Sufficiency detection
+# ---------------------------------------------------------------------------
+
+
+def is_topic_only(user_input: str) -> bool:
+    """Detect if input is just a topic name (vs detailed content).
+
+    Returns True when the input looks like a bare topic that needs
+    research before outline generation can proceed.
+
+    Heuristics:
+    - Structure markers (bullets, headers, numbered lists) indicate rich content
+    - Word count <= 10 with no structure -> topic-only
+    - Word count 11-30 with few lines and no structure -> topic-only
+    """
+    text = user_input.strip()
+    if not text:
+        return True
+
+    words = text.split()
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+    # Check for structure markers first — any presence means rich content
+    structure_markers = ["- ", "* ", "1. ", "## ", "# ", "> ", "| ", "· ", "• "]
+    for line in lines:
+        for marker in structure_markers:
+            if line.startswith(marker):
+                return False
+
+    # No structure markers found — assess by word count
+    if len(words) <= 10:
+        return True
+
+    if len(words) <= 30 and len(lines) <= 3:
+        return True
+
+    return False
+
+
+def build_delegation_signal(query: str) -> str:
+    """Build a structured JSON signal telling the outer agent to call deerflow-skill.
+
+    The outer agent (Trae orchestrator) parses this signal and delegates
+    content research to deerflow-skill, then returns enriched content to
+    ppt-skill for outline generation.
+    """
+    signal = {
+        "type": "delegate",
+        "skill": "deerflow-skill",
+        "query": query,
+        "context": (
+            "Research this presentation topic comprehensively. "
+            "Gather key sections, trends, data points, examples, case studies, "
+            "and supporting evidence needed for a professional slide deck. "
+            "The content will be used to generate a PPT outline following "
+            "the WPS (What/Point/Support) model."
+        ),
+    }
+    return json.dumps(signal, ensure_ascii=False, indent=2)
+
+
+# ---------------------------------------------------------------------------
+# Data models
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -157,6 +233,19 @@ class OutlineGenerator:
             return prompt_path.read_text(encoding="utf-8")
         return ""
 
+    def assess_and_delegate(self, user_input: str) -> str:
+        """Assess input and either generate outline or signal deerflow-skill delegation.
+
+        Returns:
+            If input is topic-only: JSON delegation signal for outer agent.
+            If input is sufficient: markdown outline string.
+        """
+        if is_topic_only(user_input):
+            return build_delegation_signal(user_input)
+
+        outline = self.generate(user_input)
+        return outline.to_markdown()
+
     def generate(
         self,
         user_input: str,
@@ -173,14 +262,24 @@ class OutlineGenerator:
         Returns:
             ContentOutlineResult with slides following WPS model
         """
-        # This is a placeholder - the actual LLM generation happens in the skill
-        # The skill uses the agent loop to:
-        # 1. Assess content sufficiency
-        # 2. Ask questions if needed
-        # 3. Generate outline using prompt-ppt-content.md principles
-        # 4. Validate and fix issues
+        # The actual LLM-powered outline generation happens in the outer agent.
+        # This method provides the programmatic placeholder for CLI/test use.
 
         return self._generate_placeholder(user_input)
+
+    def build_content_prompt(self, user_input: str) -> str:
+        """Build a structured prompt that combines user input with content principles.
+
+        The outer agent uses this prompt to execute the LLM agent loop:
+        1. Apply prompt-ppt-content.md WPS rules
+        2. Structure each slide with W (What), P (Point), S (Support)
+        3. Validate and optimize
+        """
+        return (
+            f"## User Input\n\n{user_input}\n\n"
+            f"## Content Principles\n\n{self.content_prompt}\n\n"
+            f"Generate a professional PPT outline following the WPS model above."
+        )
 
     def _generate_placeholder(self, user_input: str) -> ContentOutlineResult:
         """Generate minimal outline for programmatic use."""
@@ -261,7 +360,6 @@ class OutlineGenerator:
             elif line.startswith("## "):
                 current_section = line[3:].strip()
             elif line.startswith("### Slide "):
-                # Parse slide
                 slide_num = int(line.split()[2].rstrip(":"))
                 slide_title = line.split(":", 1)[1].strip() if ":" in line else ""
                 i += 1
@@ -299,4 +397,7 @@ class OutlineGenerator:
         )
 
 
-__all__ = ["OutlineGenerator", "ContentOutlineResult", "SlideOutline"]
+__all__ = [
+    "OutlineGenerator", "ContentOutlineResult", "SlideOutline",
+    "is_topic_only", "build_delegation_signal",
+]

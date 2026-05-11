@@ -1,12 +1,108 @@
-"""PPT Skill — minimal configuration for Phase 1 pipeline.
+"""PPT Skill — configuration loader + canvas formats + design spec defaults.
 
-Contains only CANVAS_FORMATS — the canvas dimension dictionary needed by
-the quality checker and converter pipeline. All ppt-master-specific
-configuration (DESIGN_COLORS, INDUSTRY_COLORS, LAYOUT_MARGINS, FONT_SIZES)
-belong to Phase 2 (Spec Extraction) and are intentionally excluded.
+Provides:
+  - load_config() — reads config.txt from project root, returns a flat dict
+  - get_llm_client() / get_vl_client() — OpenAI-compatible clients
+  - CANVAS_FORMATS — canvas dimension dictionary (EMU)
+  - DESIGN_COLORS, FONT_SIZES, LAYOUT_MARGINS — design spec defaults
 
 Dimensions are in EMU (English Metric Units, 1px = 9525 EMU at 96 DPI).
 """
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Any
+
+
+def _find_config() -> Path | None:
+    """Search for config.txt in project root (parent of scripts/)."""
+    # Check several likely locations
+    candidates = [
+        Path("config.txt"),
+        Path(__file__).parent.parent.parent / "config.txt",  # scripts/../config.txt
+    ]
+    for c in candidates:
+        if c.exists():
+            return c.resolve()
+    return None
+
+
+def load_config() -> dict[str, str]:
+    """Load key=value configuration from config.txt.
+
+    Returns a flat dict with ALL config keys (VL_*, LLM_*, etc.).
+    Missing config file returns empty dict — callers should provide defaults.
+    """
+    config_path = _find_config()
+    if not config_path:
+        return {}
+
+    config: dict[str, str] = {}
+    for line in config_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        config[key.strip()] = value.strip().strip('"').strip("'")
+
+    return config
+
+
+def get_llm_config(config: dict[str, str] | None = None) -> dict[str, str]:
+    """Extract LLM configuration from config dict (or load on demand)."""
+    if config is None:
+        config = load_config()
+    return {
+        "provider": config.get("LLM_PROVIDER", "openai"),
+        "model": config.get("LLM_MODEL", "gpt-4o"),
+        "api_key": config.get("LLM_API_KEY", ""),
+        "api_base": config.get("LLM_API_BASE", ""),
+        "max_tokens": config.get("LLM_MAX_TOKENS", "8192"),
+    }
+
+
+def get_vl_config(config: dict[str, str] | None = None) -> dict[str, str]:
+    """Extract VL configuration from config dict (or load on demand)."""
+    if config is None:
+        config = load_config()
+    return {
+        "provider": config.get("VL_PROVIDER", "openai"),
+        "model": config.get("VL_MODEL", "gpt-4o"),
+        "api_key": config.get("VL_API_KEY", ""),
+        "api_base": config.get("VL_API_BASE", ""),
+        "max_tokens": config.get("VL_MAX_TOKENS", "4096"),
+        "enabled": config.get("VL_ENABLED", "true").lower() == "true",
+    }
+
+
+def _build_openai_client(
+    api_key: str,
+    api_base: str | None = None,
+) -> Any:
+    """Build an OpenAI-compatible client."""
+    from openai import OpenAI
+
+    kwargs: dict = {"api_key": api_key}
+    if api_base:
+        kwargs["base_url"] = api_base
+    return OpenAI(**kwargs)
+
+
+def get_llm_client(config: dict[str, str] | None = None) -> Any:
+    """Get an OpenAI-compatible client configured for LLM (text) usage."""
+    cfg = get_llm_config(config)
+    api_key = cfg["api_key"] or os.environ.get("LLM_API_KEY", "")
+    return _build_openai_client(api_key, cfg["api_base"] or None)
+
+
+def get_vl_client(config: dict[str, str] | None = None) -> Any:
+    """Get an OpenAI-compatible client configured for VL (vision) usage."""
+    cfg = get_vl_config(config)
+    api_key = cfg["api_key"] or os.environ.get("VL_API_KEY", "")
+    return _build_openai_client(api_key, cfg["api_base"] or None)
+
 
 CANVAS_FORMATS = {
     "ppt169":      {"width": 12192000, "height": 6858000,  "name": "PPT 16:9"},
