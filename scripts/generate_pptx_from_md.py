@@ -99,7 +99,9 @@ def hline(s, x, y, w, color=ACCENT, width=Emu(13000)):
 def parse_outline(path):
     raw = open(path, encoding='utf-8').read(); lines = raw.split('\n')
     slides = []; chapter = ""; ch = 0; title = ""; body = []
+    skip_until = 0
     for i, line in enumerate(lines):
+        if i < skip_until: continue
         if line.startswith('## ') and not line.startswith('### '):
             if title: slides.append({'t':_type(title),'ti':title,'b':body,'ch':chapter,'n':ch}); body = []
             h = line.lstrip('# ').strip()
@@ -107,16 +109,20 @@ def parse_outline(path):
                 ti = h; sb = []
                 for j in range(i+1, min(i+10, len(lines))):
                     t = lines[j].strip()
+                    if not t: break
                     if t.startswith('- 主标题：'): ti = t.replace('- 主标题：','').strip()
                     elif t.startswith('- 副标题：'): sb.append(t.replace('- 副标题：','').strip())
                     elif t.startswith('- '): sb.append(t[2:])
+                skip_until = i + len(sb) + 2  # skip consumed cover body lines
                 slides.append({'t':'cover','ti':ti,'b':sb,'ch':'','n':0}); title = ""; body = []
             elif h == '目录': slides.append({'t':'toc','ti':'目录','b':[],'ch':'','n':0})
             elif h == '结尾页':
                 eb = []
                 for j in range(i+1, min(i+10, len(lines))):
                     t = lines[j].strip()
+                    if not t or t.startswith('##'): break
                     if t.startswith('- '): eb.append(t[2:])
+                skip_until = i + len(eb) + 2
                 slides.append({'t':'end','ti':'结尾页','b':eb,'ch':'','n':0}); body = []
             else: ch += 1; chapter = re.sub(r'^[第][一二三四五六七八九十]+章[：:]','',h).strip()
             title = ""
@@ -127,6 +133,10 @@ def parse_outline(path):
             t = line.strip().lstrip('- *').strip()
             if t and len(t) > 3: body.append(t)
     if title: slides.append({'t':_type(title),'ti':title,'b':body,'ch':chapter,'n':ch})
+    # Strip "转场页：" prefix from titles
+    for s in slides:
+        if s['ti'].startswith('转场页：'): s['ti'] = s['ti'][4:]
+        elif s['ti'].startswith('转场页'): s['ti'] = s['ti'][3:]
     return slides
 
 def _type(t): return 'transition' if t.startswith('转场页') else 'content'
