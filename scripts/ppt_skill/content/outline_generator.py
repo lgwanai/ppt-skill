@@ -374,8 +374,9 @@ class OutlineGenerator:
                 bt = title; bp = ""; bn = ""
                 while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("## "):
                     t = lines[i].strip()
-                    if t.startswith("- 主标题："): bt = t[5:].strip()
-                    elif t.startswith("- 副标题："): bp = t[5:].strip()
+                    if t.startswith("- 主标题："): bt = t.replace("- 主标题：", "").strip()
+                    elif t.startswith("- 副标题："): bp = t.replace("- 副标题：", "").strip()
+                    elif t.startswith("- 演讲者") or t.startswith("- 日期"): bn = t[2:].strip()
                     elif t.startswith("- "): bn = t[2:].strip()
                     i += 1
                 slides.append(SlideOutline(0, bt, "", bp, [], "cover", notes=bn))
