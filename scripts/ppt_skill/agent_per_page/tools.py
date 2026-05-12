@@ -139,9 +139,10 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
             'logo': {'x_pct':0.762,'y_pct':0.056,'w_pct':0.188,'h_pct':0.103,'image_path':f'{A}/3_自定义版式_2.png'},
         },
         'end': {
-            'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'font':typo.get('heading_family',FONT),'size_pt':42,'bold':True,'color':'#FFFFFF','align':'center'},
-            'body': {'x_pct':0.15,'y_pct':0.50,'w_pct':0.70,'font':typo.get('body_family',FONT),'size_pt':14,'color':'#FFFFFF','line_spacing':1.5},
-            'background': {'type':'solid','color':palette.get('accent1','#4472C4')},
+            'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'font':typo.get('heading_family',FONT),'size_pt':42,'bold':True,'color':'#0070C0','align':'center'},
+            'body': {'x_pct':0.15,'y_pct':0.50,'w_pct':0.70,'font':FONT,'size_pt':14,'color':'#333333','line_spacing':1.5},
+            'background': {'type':'image','color':'#FFFFFF','image_path':f'{A}/3_自定义版式_0.png'},
+            'logo': {'x_pct':0.762,'y_pct':0.056,'w_pct':0.188,'h_pct':0.103,'image_path':f'{A}/3_自定义版式_2.png'},
         },
         'toc': {
             'title': {'x_pct':0.10,'y_pct':0.12,'w_pct':0.35,'font':typo.get('heading_family',FONT),'size_pt':28,'bold':True,'color':'#0070C0','align':'left'},
@@ -332,6 +333,35 @@ Return JSON:
         return {"layout":"top_bottom","zones":[{"x_pct":0.05,"y_pct":0.15,"w_pct":0.90,"h_pct":0.75,"content":"body"}]}
 
 # ── Tool 5: draw_zone ──────────────────────────────────────────────
+
+def render_spec_images(slide, spec: dict):
+    """Render background image and logo from spec onto the slide."""
+    # Background image
+    bg = spec.get('background', {})
+    bg_path = bg.get('image_path', '')
+    if bg_path and os.path.exists(bg_path):
+        slide.shapes.add_picture(bg_path, Emu(0), Emu(0), Emu(SW), Emu(SH))
+
+    # Logo
+    logo = spec.get('logo', {})
+    logo_path = logo.get('image_path', '')
+    if logo_path and os.path.exists(logo_path):
+        lx = int(logo.get('x_pct', 0) * SW)
+        ly = int(logo.get('y_pct', 0) * SH)
+        lw = int(logo.get('w_pct', 0) * SW)
+        lh = int(logo.get('h_pct', 0) * SH)
+        slide.shapes.add_picture(logo_path, Emu(lx), Emu(ly), Emu(lw), Emu(lh))
+
+    # Content background
+    cbg = spec.get('content_bg', {})
+    cbg_path = cbg.get('image_path', '')
+    if cbg_path and os.path.exists(cbg_path):
+        cx = int(cbg.get('x_pct', 0) * SW)
+        cy = int(cbg.get('y_pct', 0) * SH)
+        cw = int(cbg.get('w_pct', 0) * SW)
+        ch = int(cbg.get('h_pct', 0) * SH)
+        slide.shapes.add_picture(cbg_path, Emu(cx), Emu(cy), Emu(cw), Emu(ch))
+
 
 def draw_zone(slide, zone: dict, spec: dict, content: str, content_type: str = "text"):
     """Draw content into a layout zone on the slide."""
