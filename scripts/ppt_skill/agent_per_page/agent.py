@@ -55,7 +55,7 @@ class PageAgent:
             if not png:
                 break
             
-            review = review_slide(png, self.spec)
+            review = review_slide(png, self.spec, self.content)
             if review.get('pass', False):
                 break
             

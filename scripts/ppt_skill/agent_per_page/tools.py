@@ -302,28 +302,107 @@ def screenshot_pptx(pptx_path: str, output_dir: str = "/tmp/ppt_screens") -> str
 
 # ── Tool 7: review ────────────────────────────────────────────────
 
-def review_slide(screenshot_path: str, spec: dict) -> dict:
-    """VL model review for visual issues."""
+def review_slide(screenshot_path: str, spec: dict, page_content: dict = None) -> dict:
+    """Two-pass review: VL blind-read → LLM content comparison → fix instructions.
+
+    Pass 1 (VL): Without any hints, describe what the image shows:
+      - Title text
+      - Key content/points
+      - Readability
+      - Any ambiguity
+
+    Pass 2 (LLM): Compare VL description against actual page_content.
+      - Is any information missing?
+      - Is the title correct?
+      - Are key points present?
+      - Is the text readable?
+
+    Returns: {"pass": bool, "vl_description": str, "content_match": bool,
+              "missing_info": [...], "issues": [...]}
+    """
     vl = _vl_client()
+    llm = _llm_client()
+    result = {"pass": True, "vl_description": "", "content_match": True, "missing_info": [], "issues": []}
+
+    if not screenshot_path or not os.path.exists(screenshot_path):
+        return result
+
     try:
         img = Image.open(screenshot_path).convert('RGB')
-        if img.width > 1024: img = img.resize((1024, int(img.height*1024/img.width)))
+        if img.width > 1024: img = img.resize((1024, int(img.height * 1024 / img.width)))
         buf = io.BytesIO(); img.save(buf, 'JPEG', quality=70)
         b64 = base64.b64encode(buf.getvalue()).decode()
-        
-        prompt = f"""Review this PPT slide for visual issues. Expected style:
-  Title: {json.dumps(spec.get('title',{}))}
-  Body: {json.dumps(spec.get('body',{}))}
 
-Check: text overlap, spacing too tight, alignment issues, overflow beyond slide, color consistency.
-Return JSON: {{"pass":bool,"issues":[{{"type":"overlap|spacing|alignment|overflow|color","detail":"...","fix":"..."}}]}}"""
-        
+        # ── Pass 1: VL blind read ──
+        vl_prompt = """Look at this PPT slide image. Describe what you see WITHOUT any assumptions about what should be there.
+
+Return JSON:
+{
+  "title_text": "exact title text visible on the slide",
+  "content_text": ["key point 1", "key point 2", "..."],
+  "readability": "good|ok|poor — can all text be read clearly?",
+  "ambiguity": "any text that is unclear, cut off, or ambiguous",
+  "visual_issues": "any layout problems: overlapping text, spacing issues, alignment, overflow",
+  "overall": "brief summary of what this slide communicates"
+}"""
+
         r = vl.chat.completions.create(
             model="mimo-v2.5-pro",
-            messages=[{"role":"user","content":[{"type":"text","text":prompt},{"type":"image_url","image_url":{"url":f"data:image/jpeg;base64,{b64}"}}]}],
-            max_tokens=512, temperature=0.1)
-        text = r.choices[0].message.content
-        m = re.search(r'\{.*\}', text, re.DOTALL)
-        return json.loads(m.group(0)) if m else {"pass":True,"issues":[]}
-    except:
-        return {"pass": True, "issues": []}
+            messages=[{"role": "user", "content": [
+                {"type": "text", "text": vl_prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+            ]}],
+            max_tokens=1024, temperature=0.1)
+        vl_text = r.choices[0].message.content
+        vl_match = re.search(r'\{.*\}', vl_text, re.DOTALL)
+        vl_result = json.loads(vl_match.group(0)) if vl_match else {}
+        result["vl_description"] = vl_result.get("overall", "")
+
+        # ── Pass 2: LLM content comparison ──
+        if page_content:
+            expected = {
+                "title": page_content.get("title", ""),
+                "body": page_content.get("body", [])[:5],
+                "type": page_content.get("type", "content"),
+            }
+            compare_prompt = f"""Compare what the VL model SAW on the slide against what SHOULD be there.
+
+EXPECTED content:
+{json.dumps(expected, ensure_ascii=False, indent=2)}
+
+VL model SAW:
+{json.dumps(vl_result, ensure_ascii=False, indent=2)}
+
+Check:
+1. Is the expected title present? (exact match not needed, semantic match OK)
+2. Are all key points from body visible?
+3. Is any expected information MISSING?
+4. Is the text readable?
+5. Any visual issues?
+
+Return JSON:
+{{
+  "content_match": true|false,
+  "title_ok": true|false,
+  "missing_info": ["info that should be on slide but is not visible"],
+  "readability_ok": true|false,
+  "issues": [{{"type": "missing|cutoff|overlap|spacing|alignment", "detail": "...", "fix": "..."}}],
+  "pass": true|false
+}}"""
+            r2 = llm.chat.completions.create(
+                model="deepseek-v4-flash",
+                messages=[{"role": "user", "content": compare_prompt}],
+                max_tokens=1024, temperature=0.1)
+            text2 = r2.choices[0].message.content
+            m2 = re.search(r'\{.*\}', text2, re.DOTALL)
+            cmp = json.loads(m2.group(0)) if m2 else {}
+            result["content_match"] = cmp.get("content_match", True)
+            result["missing_info"] = cmp.get("missing_info", [])
+            result["issues"] = cmp.get("issues", [])
+            result["pass"] = cmp.get("pass", True) and len(vl_result.get("visual_issues", "")) < 10
+
+        return result
+    except Exception as e:
+        result["issues"] = [{"type": "error", "detail": str(e)}]
+        return result
+
