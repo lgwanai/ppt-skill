@@ -42,6 +42,8 @@ def _vl_client():
         base_url=cfg.get('VL_API_BASE',''),
     )
 
+VL_MODEL = "mimo-v2-omni"  # supports image input
+
 # ── Tool 1: get_page ──────────────────────────────────────────────
 
 def get_page(outline_path: str, completed: set) -> dict | None:
@@ -119,63 +121,90 @@ def _parse_outline(raw: str) -> list[dict]:
 # ── Tool 2: extract_spec ──────────────────────────────────────────
 
 def extract_spec(page: dict, spec_dir: str) -> dict:
-    """Match page type to spec layout, return style data only (no content)."""
+    """Match page type to spec layout, return style data. Reads JSON directly (no LLM)."""
     sd = Path(spec_dir)
     spec = json.load(open(sd/'spec.json'))
     palette = spec['palette']
+    typo = spec.get('typography', {})
     
-    # Find matching layout
-    layouts = spec.get('layouts',[])
-    matched = None
-    for l in layouts:
-        if l['page_type'] == page['type']:
-            matched = l; break
-    if not matched and layouts:
-        matched = layouts[0]
-    
-    if matched:
-        data = json.load(open(sd/matched['file']))
-        elements = data.get('elements',[])
-    else:
-        elements = []
-    
-    # Extract style-only data using LLM
-    llm = _llm_client()
-    prompt = f"""Extract STYLE-ONLY data from these spec elements. Return ONLY fixed design attributes (no content text).
-
-Page type: {page['type']}
-Palette: {json.dumps(palette)}
-Elements: {json.dumps([{k:v for k,v in e.items() if k != 'text'} for e in elements], ensure_ascii=False)[:2000]}
-
-Return JSON format:
-{{
-  "page_type": "{page['type']}",
-  "palette": {{"accent": "...", "bg": "...", "text": "...", ...}},
-  "title": {{"x_pct": 0.02, "y_pct": 0.05, "w_pct": 0.95, "font": "...", "size_pt": 24, "bold": true, "color": "...", "align": "left"}},
-  "body": {{"x_pct": 0.04, "y_pct": 0.12, "w_pct": 0.92, "font": "...", "size_pt": 14, "color": "...", "line_spacing": 1.5}},
-  "background": {{"type": "solid|image", "color": "...", "image_path": "..."}},
-  "decorations": [{{"type": "line|shape", "pos": {{...}}, "color": "..."}}],
-  "layout_type": "full_width|left_right|top_bottom|center"
-}}
-"""
-    try:
-        r = llm.chat.completions.create(model="deepseek-v4-flash", messages=[{"role":"user","content":prompt}], max_tokens=1024, temperature=0.1)
-        text = r.choices[0].message.content
-        m = re.search(r'\{.*\}', text, re.DOTALL)
-        return json.loads(m.group(0)) if m else _default_spec(page, palette)
-    except:
-        return _default_spec(page, palette)
-
-def _default_spec(page, palette):
-    return {
-        "page_type": page['type'],
-        "palette": {"accent": palette.get('accent1','#4472C4'), "bg": "#FFFFFF", "text": "#333333"},
-        "title": {"x_pct": 0.021, "y_pct": 0.049, "w_pct": 0.95, "font": FONT, "size_pt": 24, "bold": True, "color": palette.get('accent1','#4472C4'), "align": "left"},
-        "body": {"x_pct": 0.04, "y_pct": 0.14, "w_pct": 0.92, "font": FONT, "size_pt": 13, "color": "#333333", "line_spacing": 1.5},
-        "background": {"type": "solid", "color": "#FFFFFF"},
-        "decorations": [],
-        "layout_type": "full_width"
+    # Default styles by page type
+    defaults = {
+        'cover': {
+            'title': {'x_pct':0.12,'y_pct':0.20,'w_pct':0.76,'font':typo.get('heading_family',FONT),'size_pt':36,'bold':True,'color':'#FFFFFF','align':'center'},
+            'body': {'x_pct':0.12,'y_pct':0.62,'w_pct':0.76,'font':typo.get('body_family',FONT),'size_pt':16,'color':'#CCDDEE','line_spacing':1.3},
+            'background': {'type':'solid','color':palette.get('accent1','#4472C4')},
+        },
+        'end': {
+            'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'font':typo.get('heading_family',FONT),'size_pt':42,'bold':True,'color':'#FFFFFF','align':'center'},
+            'body': {'x_pct':0.15,'y_pct':0.50,'w_pct':0.70,'font':typo.get('body_family',FONT),'size_pt':14,'color':'#FFFFFF','line_spacing':1.5},
+            'background': {'type':'solid','color':palette.get('accent1','#4472C4')},
+        },
+        'toc': {
+            'title': {'x_pct':0.10,'y_pct':0.08,'w_pct':0.35,'font':typo.get('heading_family',FONT),'size_pt':28,'bold':True,'color':palette.get('accent1','#4472C4'),'align':'left'},
+            'body': {'x_pct':0.50,'y_pct':0.12,'w_pct':0.42,'font':typo.get('body_family',FONT),'size_pt':16,'color':'#333333','line_spacing':1.5},
+            'background': {'type':'solid','color':'#FFFFFF'},
+        },
+        'transition': {
+            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':palette.get('accent1','#4472C4'),'align':'left'},
+            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':typo.get('body_family',FONT),'size_pt':13,'color':'#333333','line_spacing':1.5},
+            'background': {'type':'solid','color':'#FFFFFF'},
+        },
+        'content': {
+            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':palette.get('accent1','#4472C4'),'align':'left'},
+            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':typo.get('body_family',FONT),'size_pt':13,'color':'#333333','line_spacing':1.5},
+            'background': {'type':'solid','color':'#FFFFFF'},
+        },
     }
+    
+    pt = page.get('type', 'content')
+    base = defaults.get(pt, defaults['content'])
+    
+    # Try to find matching spec layout for more precise data
+    layouts = spec.get('layouts', [])
+    # Find layout by page_type
+    for l in layouts:
+        if l['page_type'] == pt:
+            try:
+                data = json.load(open(sd / l['file']))
+                elements = data.get('elements', [])
+                # Extract actual style data from elements
+                for e in elements:
+                    ts = e.get('text_style', {}) or {}
+                    pos = e.get('position', {}) or {}
+                    role = _infer_role(e)
+                    if role == 'title' and ts.get('font_size_pt', 0) > 0:
+                        base['title']['size_pt'] = ts['font_size_pt']
+                        base['title']['font'] = ts.get('font_family', base['title']['font'])
+                    if role == 'title' and pos.get('x'):
+                        base['title']['x_pct'] = pos['x']; base['title']['y_pct'] = pos['y']
+                        base['title']['w_pct'] = pos['w']
+                    if role == 'subtitle' and ts.get('font_size_pt', 0) > 0:
+                        base['body']['size_pt'] = ts['font_size_pt']
+                        base['body']['x_pct'] = pos.get('x', base['body']['x_pct'])
+                        base['body']['y_pct'] = pos.get('y', base['body']['y_pct'])
+                break
+            except: pass
+    
+    return {
+        "page_type": pt,
+        "palette": {"accent": palette.get('accent1','#4472C4'), "bg": "#FFFFFF", "text": "#333333"},
+        **base,
+        "decorations": [],
+        "layout_type": "full_width" if pt in ('cover','end','transition') else "top_bottom",
+    }
+
+
+def _infer_role(elem):
+    pos = elem.get('position', {})
+    ts = elem.get('text_style', {}) or {}
+    x, y, w, h = pos.get('x',0), pos.get('y',0), pos.get('w',0), pos.get('h',0)
+    fs = ts.get('font_size_pt', 0) or 0
+    if w > 0.9 and h > 0.9: return 'background'
+    if x > 0.7 and w < 0.3: return 'logo'
+    if y < 0.3 and h > 0.3: return 'title'
+    if fs >= 16 and y > 0.5: return 'subtitle'
+    if fs >= 16: return 'subtitle'
+    return 'body'
 
 # ── Tool 3: plan_assets ───────────────────────────────────────────
 
@@ -347,7 +376,7 @@ Return JSON:
 }"""
 
         r = vl.chat.completions.create(
-            model="mimo-v2.5-pro",
+            model=VL_MODEL,
             messages=[{"role": "user", "content": [
                 {"type": "text", "text": vl_prompt},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
