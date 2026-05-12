@@ -133,8 +133,8 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
     # Default styles by page type
     defaults = {
         'cover': {
-            'title': {'x_pct':0.161,'y_pct':0.098,'w_pct':0.669,'font':typo.get('heading_family',FONT),'size_pt':36,'bold':False,'color':'#0070C0','align':'center'},
-            'body': {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'font':FONT,'size_pt':20,'bold':True,'color':'#0070C0','line_spacing':1.3},
+            'title': {'x_pct':0.114,'y_pct':0.098,'w_pct':0.788,'font':'微软雅黑','size_pt':40,'bold':False,'color':'#0070C0','align':'center'},
+            'body': {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'font':'微软雅黑','size_pt':20,'bold':True,'color':'#0070C0','line_spacing':1.3,'align':'center'},
             'background': {'type':'image','color':'#FFFFFF','image_path':f'{A}/3_自定义版式_0.png'},
             'logo': {'x_pct':0.762,'y_pct':0.056,'w_pct':0.188,'h_pct':0.103,'image_path':f'{A}/3_自定义版式_2.png'},
         },
