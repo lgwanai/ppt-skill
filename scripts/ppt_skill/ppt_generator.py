@@ -23,7 +23,6 @@ from typing import Any, Callable
 
 from ppt_skill.slide_generator import generate_slide_with_loop, SlideResult
 from ppt_skill.style_evaluator import StyleReport
-from ppt_skill.pipeline import convert_svg_to_pptx
 from ppt_skill.layout.designer import LayoutDesigner, LayoutResult
 
 
@@ -337,7 +336,7 @@ def generate_pptx(
     if svg_paths:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         svg_paths.sort()
-        convert_svg_to_pptx(svg_paths, output_path)
+        prs.save(str(output_path))
         result.output_path = output_path
 
     return result

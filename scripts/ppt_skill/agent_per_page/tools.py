@@ -345,7 +345,7 @@ Return JSON:
 {{"layout":"grid_2x2","zones":[{{"x_pct":0.05,"y_pct":0.15,"w_pct":0.42,"h_pct":0.35,"content":"title"}},{{"x_pct":0.52,"y_pct":0.15,"w_pct":0.42,"h_pct":0.35,"content":"body_0"}},{{"x_pct":0.05,"y_pct":0.52,"w_pct":0.42,"h_pct":0.35,"content":"body_2"}},{{"x_pct":0.52,"y_pct":0.52,"w_pct":0.42,"h_pct":0.35,"content":"diagram"}}]}}
 """
     try:
-        r = llm.chat.completions.create(model="deepseek-v4-flash", messages=[{"role":"user","content":prompt}], max_tokens=1024, temperature=0.2)
+        r = llm.chat.completions.create(model="deepseek-chat", messages=[{"role":"user","content":prompt}], max_tokens=1024, temperature=0.2)
         text = r.choices[0].message.content
         m = re.search(r'\{.*\}', text, re.DOTALL)
         return json.loads(m.group(0)) if m else {"layout":"top_bottom","zones":[{"x_pct":0.05,"y_pct":0.15,"w_pct":0.90,"h_pct":0.75,"content":"body"}]}
@@ -503,7 +503,7 @@ Return JSON:
                 {"type": "text", "text": vl_prompt},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
             ]}],
-            max_tokens=1024, temperature=0.1)
+            max_tokens=1024, temperature=0.1, timeout=8)
         vl_text = r.choices[0].message.content
         vl_match = re.search(r'\{.*\}', vl_text, re.DOTALL)
         vl_result = json.loads(vl_match.group(0)) if vl_match else {}
@@ -541,9 +541,9 @@ Return JSON:
   "pass": true|false
 }}"""
             r2 = llm.chat.completions.create(
-                model="deepseek-v4-flash",
+                model="deepseek-chat",
                 messages=[{"role": "user", "content": compare_prompt}],
-                max_tokens=1024, temperature=0.1)
+                max_tokens=1024, temperature=0.1, timeout=8)
             text2 = r2.choices[0].message.content
             m2 = re.search(r'\{.*\}', text2, re.DOTALL)
             cmp = json.loads(m2.group(0)) if m2 else {}
