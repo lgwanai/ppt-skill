@@ -264,7 +264,7 @@ Choose optimal representation. Return JSON:
 
     try:
         r = llm.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-flash",
             messages=[{"role":"user","content":prompt}],
             max_tokens=512, temperature=0.2, timeout=10,
         )
@@ -345,7 +345,7 @@ Return JSON:
 {{"layout":"grid_2x2","zones":[{{"x_pct":0.05,"y_pct":0.15,"w_pct":0.42,"h_pct":0.35,"content":"title"}},{{"x_pct":0.52,"y_pct":0.15,"w_pct":0.42,"h_pct":0.35,"content":"body_0"}},{{"x_pct":0.05,"y_pct":0.52,"w_pct":0.42,"h_pct":0.35,"content":"body_2"}},{{"x_pct":0.52,"y_pct":0.52,"w_pct":0.42,"h_pct":0.35,"content":"diagram"}}]}}
 """
     try:
-        r = llm.chat.completions.create(model="deepseek-chat", messages=[{"role":"user","content":prompt}], max_tokens=1024, temperature=0.2)
+        r = llm.chat.completions.create(model="deepseek-v4-flash", messages=[{"role":"user","content":prompt}], max_tokens=1024, temperature=0.2)
         text = r.choices[0].message.content
         m = re.search(r'\{.*\}', text, re.DOTALL)
         return json.loads(m.group(0)) if m else {"layout":"top_bottom","zones":[{"x_pct":0.05,"y_pct":0.15,"w_pct":0.90,"h_pct":0.75,"content":"body"}]}
@@ -541,7 +541,7 @@ Return JSON:
   "pass": true|false
 }}"""
             r2 = llm.chat.completions.create(
-                model="deepseek-chat",
+                model="deepseek-v4-flash",
                 messages=[{"role": "user", "content": compare_prompt}],
                 max_tokens=1024, temperature=0.1, timeout=8)
             text2 = r2.choices[0].message.content
