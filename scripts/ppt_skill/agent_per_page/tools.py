@@ -130,9 +130,9 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
     # Default styles by page type
     defaults = {
         'cover': {
-            'title': {'x_pct':0.12,'y_pct':0.20,'w_pct':0.76,'font':typo.get('heading_family',FONT),'size_pt':36,'bold':True,'color':'#FFFFFF','align':'center'},
-            'body': {'x_pct':0.12,'y_pct':0.62,'w_pct':0.76,'font':typo.get('body_family',FONT),'size_pt':16,'color':'#CCDDEE','line_spacing':1.3},
-            'background': {'type':'solid','color':palette.get('accent1','#4472C4')},
+            'title': {'x_pct':0.161,'y_pct':0.098,'w_pct':0.669,'font':typo.get('heading_family',FONT),'size_pt':36,'bold':False,'color':palette.get('accent1','#4472C4'),'align':'center'},
+            'body': {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'font':typo.get('body_family',FONT),'size_pt':20,'bold':True,'color':palette.get('accent1','#4472C4'),'line_spacing':1.3},
+            'background': {'type':'image','color':'#FFFFFF'},
         },
         'end': {
             'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'font':typo.get('heading_family',FONT),'size_pt':42,'bold':True,'color':'#FFFFFF','align':'center'},
@@ -172,16 +172,20 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
                     ts = e.get('text_style', {}) or {}
                     pos = e.get('position', {}) or {}
                     role = _infer_role(e)
-                    if role == 'title' and ts.get('font_size_pt', 0) > 0:
-                        base['title']['size_pt'] = ts['font_size_pt']
+                    fs = ts.get('font_size_pt', 0) or 0
+                    if role == 'title':
+                        if pos.get('x'): base['title'].update({'x_pct':pos['x'],'y_pct':pos['y'],'w_pct':pos['w'],'h_pct':pos['h']})
+                        if fs > 0: base['title']['size_pt'] = fs
                         base['title']['font'] = ts.get('font_family', base['title']['font'])
-                    if role == 'title' and pos.get('x'):
-                        base['title']['x_pct'] = pos['x']; base['title']['y_pct'] = pos['y']
-                        base['title']['w_pct'] = pos['w']
-                    if role == 'subtitle' and ts.get('font_size_pt', 0) > 0:
-                        base['body']['size_pt'] = ts['font_size_pt']
-                        base['body']['x_pct'] = pos.get('x', base['body']['x_pct'])
-                        base['body']['y_pct'] = pos.get('y', base['body']['y_pct'])
+                        base['title']['color'] = ts.get('font_color', base['title']['color']).lstrip('#') if ts.get('font_color') else base['title']['color']
+                    if role == 'subtitle':
+                        if pos.get('x'): base['body'].update({'x_pct':pos['x'],'y_pct':pos['y'],'w_pct':pos['w']})
+                        if fs > 0: base['body']['size_pt'] = fs
+                        base['body']['font'] = ts.get('font_family', base['body']['font'])
+                        base['body']['color'] = ts.get('font_color', base['body']['color']).lstrip('#') if ts.get('font_color') else base['body']['color']
+                        base['body']['bold'] = (ts.get('font_weight','') == 'bold')
+                    if role == 'background':
+                        base['background'] = {'type':'image','color':'#FFFFFF'}
                 break
             except: pass
     
@@ -209,29 +213,86 @@ def _infer_role(elem):
 # ── Tool 3: plan_assets ───────────────────────────────────────────
 
 def plan_assets(page: dict, spec: dict) -> dict:
-    """Plan optimal visual elements for page content."""
+    """Plan optimal visual elements for page content. LLM-driven with deterministic fallback."""
     llm = _llm_client()
-    prompt = f"""Plan visual assets for this slide. Priority: SmartArt+text > SmartArt > chart+text > diagram+text > plain text.
-Max 2 graphics (SmartArt/chart/diagram) per page. If graphics can replace text, condense text.
+    prompt = f"""Plan visual assets for this PPT slide. Priority: SmartArt > chart > diagram > text.
+Max 2 graphics per page. If graphics can replace text, condense the text.
 
-Page content:
+CONTENT:
   type: {page['type']}
-  title: {page['title']}
-  body items ({len(page['body'])}):
-  {json.dumps(page['body'][:6], ensure_ascii=False)}
+  title: {page['title'][:80]}
+  body ({len(page['body'])} items):
+  {json.dumps(page['body'][:5], ensure_ascii=False)[:500]}
 
-Available: SmartArt types (list/process/cycle/hierarchy/pyramid/matrix), chart (bar/pie/line), diagram SVG templates, icons, images.
+Available: SmartArt (list/process/cycle/hierarchy/pyramid/matrix), chart (bar/pie/line), diagram SVG, icons, images.
 
-Return JSON: 
-{{"modules": [{{"type":"smartart|chart|diagram|image|text","subtype":"flow|compare|list|pyramid|cycle|bar|table","contentRef":"which body items this covers","reason":"why this choice"}}]}}
-"""
+Analyze content structure: parallel points? flow/process? comparison? numbers? One big idea?
+Choose optimal representation. Return JSON:
+{{"modules":[{{"type":"smartart|chart|diagram|image|text","subtype":"list|flow|compare|hierarchy|process|bar|pie","contentRef":"body[0..N] or all","reason":"one line why"}}]}}"""
+
     try:
-        r = llm.chat.completions.create(model="deepseek-v4-flash", messages=[{"role":"user","content":prompt}], max_tokens=1024, temperature=0.3)
+        r = llm.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role":"user","content":prompt}],
+            max_tokens=512, temperature=0.2, timeout=10,
+        )
         text = r.choices[0].message.content
         m = re.search(r'\{.*\}', text, re.DOTALL)
-        return json.loads(m.group(0)) if m else {"modules": [{"type":"text","subtype":"list","contentRef":"all","reason":"default"}]}
-    except:
-        return {"modules": [{"type":"text","subtype":"list","contentRef":"all","reason":"default"}]}
+        if m:
+            result = json.loads(m.group(0))
+            if result.get('modules'): return result
+    except Exception:
+        pass
+
+    # Deterministic fallback — analyze content structure
+    return _deterministic_assets(page)
+
+
+def _deterministic_assets(page: dict) -> dict:
+    """Smart fallback: analyze content structure without LLM."""
+    body = page.get('body', [])
+    pt = page.get('type', 'content')
+    title = page.get('title', '')
+    
+    # Cover/End → centered text hierarchy
+    if pt in ('cover', 'end'):
+        return {"modules": [{"type": "text", "subtype": "cover_title",
+                "contentRef": "all", "reason": "Cover/end: centered title with accent background"}]}
+    
+    # Detect table content
+    table_items = [b for b in body if b.startswith('__TABLE__')]
+    if len(table_items) >= 3:
+        return {"modules": [{"type": "text", "subtype": "table",
+                "contentRef": "table items", "reason": f"Table detected ({len(table_items)} rows)"}]}
+    
+    # Detect list patterns (numbered items, bullet points)
+    list_items = [b for b in body if len(b) > 10 and not b.startswith('__TABLE__')]
+    n = len(list_items)
+    
+    # 3-4 items → SmartArt list or grid
+    if 3 <= n <= 4:
+        return {"modules": [
+            {"type": "smartart", "subtype": "list", "contentRef": f"body[0..{n-1}]",
+             "reason": f"{n} parallel points → SmartArt list"}
+        ]}
+    
+    # 5+ items → compact text grid
+    if n >= 5:
+        return {"modules": [
+            {"type": "text", "subtype": "grid_2col", "contentRef": f"all {n} items",
+             "reason": f"{n} items → compact 2-column grid"}
+        ]}
+    
+    # 2 items with "vs" or comparison → compare layout
+    if n == 2 and ('vs' in title.lower() or '对比' in title or '比较' in title or '区别' in title):
+        return {"modules": [
+            {"type": "smartart", "subtype": "compare", "contentRef": "body[0..1]",
+             "reason": "2 items comparison → SmartArt compare"}
+        ]}
+    
+    # Default: text list
+    return {"modules": [{"type": "text", "subtype": "list", "contentRef": "all",
+             "reason": "Default text list layout"}]}
 
 # ── Tool 4: plan_layout ───────────────────────────────────────────
 
