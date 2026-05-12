@@ -10,6 +10,7 @@ from PIL import Image
 
 SW, SH = 12192000, 6858000
 FONT = '微软雅黑'
+A = '/tmp/ppt_assets'  # layout image assets directory
 
 def _emu(v): return Emu(int(v))
 def _hx(h): h=h.lstrip('#'); return int(h[0:2],16),int(h[2:4],16),int(h[4:6],16)
@@ -45,12 +46,14 @@ def _vl_client():
 VL_MODEL = "mimo-v2-omni"  # supports image input
 
 # ── Tool 1: get_page ──────────────────────────────────────────────
+_PAGE_CACHE = {}
 
 def get_page(outline_path: str, completed: set) -> dict | None:
-    """Fetch next uncompleted page from outline."""
-    raw = open(outline_path, encoding='utf-8').read()
-    pages = _parse_outline(raw)
-    for p in pages:
+    """Fetch next uncompleted page from outline. Results cached."""
+    if outline_path not in _PAGE_CACHE:
+        raw = open(outline_path, encoding='utf-8').read()
+        _PAGE_CACHE[outline_path] = _parse_outline(raw)
+    for p in _PAGE_CACHE[outline_path]:
         if p['index'] not in completed:
             return p
     return None
@@ -130,9 +133,10 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
     # Default styles by page type
     defaults = {
         'cover': {
-            'title': {'x_pct':0.161,'y_pct':0.098,'w_pct':0.669,'font':typo.get('heading_family',FONT),'size_pt':36,'bold':False,'color':palette.get('accent1','#4472C4'),'align':'center'},
-            'body': {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'font':typo.get('body_family',FONT),'size_pt':20,'bold':True,'color':palette.get('accent1','#4472C4'),'line_spacing':1.3},
-            'background': {'type':'image','color':'#FFFFFF'},
+            'title': {'x_pct':0.161,'y_pct':0.098,'w_pct':0.669,'font':typo.get('heading_family',FONT),'size_pt':36,'bold':False,'color':'#0070C0','align':'center'},
+            'body': {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'font':FONT,'size_pt':20,'bold':True,'color':'#0070C0','line_spacing':1.3},
+            'background': {'type':'image','color':'#FFFFFF','image_path':f'{A}/3_自定义版式_0.png'},
+            'logo': {'x_pct':0.762,'y_pct':0.056,'w_pct':0.188,'h_pct':0.103,'image_path':f'{A}/3_自定义版式_2.png'},
         },
         'end': {
             'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'font':typo.get('heading_family',FONT),'size_pt':42,'bold':True,'color':'#FFFFFF','align':'center'},
@@ -140,19 +144,25 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
             'background': {'type':'solid','color':palette.get('accent1','#4472C4')},
         },
         'toc': {
-            'title': {'x_pct':0.10,'y_pct':0.08,'w_pct':0.35,'font':typo.get('heading_family',FONT),'size_pt':28,'bold':True,'color':palette.get('accent1','#4472C4'),'align':'left'},
-            'body': {'x_pct':0.50,'y_pct':0.12,'w_pct':0.42,'font':typo.get('body_family',FONT),'size_pt':16,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.10,'y_pct':0.12,'w_pct':0.35,'font':typo.get('heading_family',FONT),'size_pt':28,'bold':True,'color':'#0070C0','align':'left'},
+            'body': {'x_pct':0.47,'y_pct':0.22,'w_pct':0.43,'font':FONT,'size_pt':16,'color':'#333333','line_spacing':1.5},
             'background': {'type':'solid','color':'#FFFFFF'},
+            'logo': {'x_pct':0.832,'y_pct':0.023,'w_pct':0.141,'h_pct':0.077,'image_path':f'{A}/统一模板_1.png'},
+            'content_bg': {'x_pct':0.0,'y_pct':0.233,'w_pct':0.769,'h_pct':0.769,'image_path':f'{A}/统一模板_2.png'},
         },
         'transition': {
-            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':palette.get('accent1','#4472C4'),'align':'left'},
-            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':typo.get('body_family',FONT),'size_pt':13,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':'#0070C0','align':'left'},
+            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':FONT,'size_pt':13,'color':'#333333','line_spacing':1.5},
             'background': {'type':'solid','color':'#FFFFFF'},
+            'logo': {'x_pct':0.832,'y_pct':0.023,'w_pct':0.141,'h_pct':0.077,'image_path':f'{A}/统一模板_1.png'},
+            'content_bg': {'x_pct':0.0,'y_pct':0.233,'w_pct':0.769,'h_pct':0.769,'image_path':f'{A}/统一模板_2.png'},
         },
         'content': {
-            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':palette.get('accent1','#4472C4'),'align':'left'},
-            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':typo.get('body_family',FONT),'size_pt':13,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':'#0070C0','align':'left'},
+            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':FONT,'size_pt':13,'color':'#333333','line_spacing':1.5},
             'background': {'type':'solid','color':'#FFFFFF'},
+            'logo': {'x_pct':0.832,'y_pct':0.023,'w_pct':0.141,'h_pct':0.077,'image_path':f'{A}/统一模板_1.png'},
+            'content_bg': {'x_pct':0.0,'y_pct':0.233,'w_pct':0.769,'h_pct':0.769,'image_path':f'{A}/统一模板_2.png'},
         },
     }
     
@@ -171,21 +181,21 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
                 for e in elements:
                     ts = e.get('text_style', {}) or {}
                     pos = e.get('position', {}) or {}
-                    role = _infer_role(e)
+                    role = _infer_role(e, pt)
                     fs = ts.get('font_size_pt', 0) or 0
-                    if role == 'title':
-                        if pos.get('x'): base['title'].update({'x_pct':pos['x'],'y_pct':pos['y'],'w_pct':pos['w'],'h_pct':pos['h']})
-                        if fs > 0: base['title']['size_pt'] = fs
+                    # Only update if we have actual font data AND role matches
+                    if role == 'title' and fs > 0 and pos.get('x') is not None:
+                        base['title'].update({'x_pct':pos['x'],'y_pct':pos['y'],'w_pct':pos['w'],'h_pct':pos['h']})
+                        base['title']['size_pt'] = fs
                         base['title']['font'] = ts.get('font_family', base['title']['font'])
-                        base['title']['color'] = ts.get('font_color', base['title']['color']).lstrip('#') if ts.get('font_color') else base['title']['color']
-                    if role == 'subtitle':
-                        if pos.get('x'): base['body'].update({'x_pct':pos['x'],'y_pct':pos['y'],'w_pct':pos['w']})
-                        if fs > 0: base['body']['size_pt'] = fs
+                        if ts.get('font_color'): base['title']['color'] = ts['font_color']
+                        if ts.get('font_weight'): base['title']['bold'] = (ts['font_weight'] == 'bold')
+                    if role == 'subtitle' and fs > 0:
+                        base['body'].update({'x_pct':pos.get('x',base['body']['x_pct']),'y_pct':pos.get('y',base['body']['y_pct']),'w_pct':pos.get('w',base['body']['w_pct'])})
+                        base['body']['size_pt'] = fs
                         base['body']['font'] = ts.get('font_family', base['body']['font'])
-                        base['body']['color'] = ts.get('font_color', base['body']['color']).lstrip('#') if ts.get('font_color') else base['body']['color']
+                        if ts.get('font_color'): base['body']['color'] = ts['font_color']
                         base['body']['bold'] = (ts.get('font_weight','') == 'bold')
-                    if role == 'background':
-                        base['background'] = {'type':'image','color':'#FFFFFF'}
                 break
             except: pass
     
@@ -198,16 +208,17 @@ def extract_spec(page: dict, spec_dir: str) -> dict:
     }
 
 
-def _infer_role(elem):
+def _infer_role(elem, page_type='content'):
     pos = elem.get('position', {})
     ts = elem.get('text_style', {}) or {}
     x, y, w, h = pos.get('x',0), pos.get('y',0), pos.get('w',0), pos.get('h',0)
     fs = ts.get('font_size_pt', 0) or 0
     if w > 0.9 and h > 0.9: return 'background'
-    if x > 0.7 and w < 0.3: return 'logo'
+    if x > 0.7 and w < 0.3 and h < 0.2: return 'logo'
     if y < 0.3 and h > 0.3: return 'title'
-    if fs >= 16 and y > 0.5: return 'subtitle'
-    if fs >= 16: return 'subtitle'
+    # Only infer subtitle for cover pages
+    if page_type == 'cover' and fs >= 16 and y > 0.5: return 'subtitle'
+    if fs >= 16 and y < 0.5: return 'title'
     return 'body'
 
 # ── Tool 3: plan_assets ───────────────────────────────────────────
