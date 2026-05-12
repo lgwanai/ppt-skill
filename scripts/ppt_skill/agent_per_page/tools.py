@@ -124,47 +124,67 @@ def _parse_outline(raw: str) -> list[dict]:
 # ── Tool 2: extract_spec ──────────────────────────────────────────
 
 def extract_spec(page: dict, spec_dir: str) -> dict:
-    """Match page type to spec layout, return style data. Reads JSON directly (no LLM)."""
+    """Match page type to spec layout. Uses verified defaults from actual PPTX extraction."""
     sd = Path(spec_dir)
     spec = json.load(open(sd/'spec.json'))
     palette = spec['palette']
     typo = spec.get('typography', {})
     
-    # Default styles by page type
+    # ══ Verified from actual PPTX shapes (python-pptx) ══
+    # Cover: 主标题 pos=(0.114,0.098) w=0.788, 40pt bold #0070C0 CENTER
+    #        副标题 pos=(0.077,0.625) w=0.846, 20pt bold #0070C0 CENTER
+    # Content: title pos=(0.021,0.049) 24pt bold #0070C0 LEFT
+    #          body  pos=(0.04,0.14) 13pt #333333 LEFT
+    
     defaults = {
         'cover': {
-            'title': {'x_pct':0.114,'y_pct':0.098,'w_pct':0.788,'font':'微软雅黑','size_pt':40,'bold':False,'color':'#0070C0','align':'center'},
-            'body': {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'font':'微软雅黑','size_pt':20,'bold':True,'color':'#0070C0','line_spacing':1.3,'align':'center'},
+            'title': {'x_pct':0.114,'y_pct':0.098,'w_pct':0.788,'h_pct':0.45,'font':'微软雅黑','size_pt':40,'bold':True,'color':'#0070C0','align':'center'},
+            'body':  {'x_pct':0.077,'y_pct':0.625,'w_pct':0.846,'h_pct':0.15,'font':'微软雅黑','size_pt':20,'bold':True,'color':'#0070C0','align':'center','line_spacing':1.3},
             'background': {'type':'image','color':'#FFFFFF','image_path':f'{A}/3_自定义版式_0.png'},
             'logo': {'x_pct':0.762,'y_pct':0.056,'w_pct':0.188,'h_pct':0.103,'image_path':f'{A}/3_自定义版式_2.png'},
+            'layout_type': 'center',
         },
         'end': {
-            'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'font':typo.get('heading_family',FONT),'size_pt':42,'bold':True,'color':'#0070C0','align':'center'},
-            'body': {'x_pct':0.15,'y_pct':0.50,'w_pct':0.70,'font':FONT,'size_pt':14,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.10,'y_pct':0.30,'w_pct':0.80,'h_pct':0.15,'font':'微软雅黑','size_pt':42,'bold':True,'color':'#0070C0','align':'center'},
+            'body':  {'x_pct':0.15,'y_pct':0.50,'w_pct':0.70,'h_pct':0.25,'font':'微软雅黑','size_pt':14,'color':'#333333','align':'center','line_spacing':1.5},
             'background': {'type':'image','color':'#FFFFFF','image_path':f'{A}/3_自定义版式_0.png'},
             'logo': {'x_pct':0.762,'y_pct':0.056,'w_pct':0.188,'h_pct':0.103,'image_path':f'{A}/3_自定义版式_2.png'},
+            'layout_type': 'center',
         },
         'toc': {
-            'title': {'x_pct':0.10,'y_pct':0.12,'w_pct':0.35,'font':typo.get('heading_family',FONT),'size_pt':28,'bold':True,'color':'#0070C0','align':'left'},
-            'body': {'x_pct':0.47,'y_pct':0.22,'w_pct':0.43,'font':FONT,'size_pt':16,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.10,'y_pct':0.12,'w_pct':0.35,'h_pct':0.06,'font':typo.get('heading_family','微软雅黑'),'size_pt':28,'bold':True,'color':'#0070C0','align':'left'},
+            'body':  {'x_pct':0.47,'y_pct':0.22,'w_pct':0.43,'h_pct':0.60,'font':typo.get('body_family','微软雅黑'),'size_pt':16,'color':'#333333','align':'left','line_spacing':1.8},
             'background': {'type':'solid','color':'#FFFFFF'},
             'logo': {'x_pct':0.832,'y_pct':0.023,'w_pct':0.141,'h_pct':0.077,'image_path':f'{A}/统一模板_1.png'},
             'content_bg': {'x_pct':0.0,'y_pct':0.233,'w_pct':0.769,'h_pct':0.769,'image_path':f'{A}/统一模板_2.png'},
+            'layout_type': 'left_right',
         },
         'transition': {
-            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':'#0070C0','align':'left'},
-            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':FONT,'size_pt':13,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'h_pct':0.08,'font':typo.get('heading_family','微软雅黑'),'size_pt':24,'bold':True,'color':'#0070C0','align':'left'},
+            'body':  {'x_pct':0.04,'y_pct':0.15,'w_pct':0.92,'h_pct':0.75,'font':typo.get('body_family','微软雅黑'),'size_pt':13,'color':'#333333','align':'left','line_spacing':1.5},
             'background': {'type':'solid','color':'#FFFFFF'},
             'logo': {'x_pct':0.832,'y_pct':0.023,'w_pct':0.141,'h_pct':0.077,'image_path':f'{A}/统一模板_1.png'},
             'content_bg': {'x_pct':0.0,'y_pct':0.233,'w_pct':0.769,'h_pct':0.769,'image_path':f'{A}/统一模板_2.png'},
+            'layout_type': 'full_width',
         },
         'content': {
-            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'font':typo.get('heading_family',FONT),'size_pt':24,'bold':True,'color':'#0070C0','align':'left'},
-            'body': {'x_pct':0.04,'y_pct':0.14,'w_pct':0.92,'font':FONT,'size_pt':13,'color':'#333333','line_spacing':1.5},
+            'title': {'x_pct':0.021,'y_pct':0.049,'w_pct':0.95,'h_pct':0.08,'font':typo.get('heading_family','微软雅黑'),'size_pt':24,'bold':True,'color':'#0070C0','align':'left'},
+            'body':  {'x_pct':0.04,'y_pct':0.15,'w_pct':0.92,'h_pct':0.75,'font':typo.get('body_family','微软雅黑'),'size_pt':13,'color':'#333333','align':'left','line_spacing':1.5},
             'background': {'type':'solid','color':'#FFFFFF'},
             'logo': {'x_pct':0.832,'y_pct':0.023,'w_pct':0.141,'h_pct':0.077,'image_path':f'{A}/统一模板_1.png'},
             'content_bg': {'x_pct':0.0,'y_pct':0.233,'w_pct':0.769,'h_pct':0.769,'image_path':f'{A}/统一模板_2.png'},
+            'layout_type': 'full_width',
         },
+    }
+    
+    pt = page.get('type', 'content')
+    base = defaults.get(pt, defaults['content'])
+    
+    return {
+        "page_type": pt,
+        "palette": {"accent": palette.get('accent1','#4472C4'), "bg": "#FFFFFF", "text": "#333333"},
+        **base,
+        "decorations": [],
     }
     
     pt = page.get('type', 'content')
